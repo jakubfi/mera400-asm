@@ -42,13 +42,11 @@ mx_cmd:	.word	0b101\2 + chan\14,	; setconf
 mx_ps:	.word	psuk, 0, pstrx
 intseq:	.word	2, 5, 10, 13
 
-psuk:	.word	3\7 + 1\15	; two phys. desc., one logical
-	.word	0		; (returned data)
-	.word	27		; phys.: 27 unused lines
-	.word	1\3 + 3\7 + 0	; phys.: 1 winchester
-	.word	0\3 + 3\7 + 2	; phys.: 3 winchesters (unused)
-	.word	6\7 + 28	; log: winchester protocol on phys. line 28
-	.word	1\7 + 1		; log: type NEC, formatting disabled
+psuk:	.word	3\7 + 1\15, 0		; 3 physical line descriptions, 1 logical line
+	.word	27			; 0-27: unused physical lines
+	.word	1\3 + 3\7 + 0		; 28: 1 winchester
+	.word	0\3 + 3\7 + 2		; 29-31: 3 winchesters (unused)
+	.word	6\7 + 28\15, 3\7 + 1\15	; logical line 0: winchester on physical line 28, 4 heads, formatting disabled
 
 pstrx:	.word	2\7		; read
 	.word	image		; dest. address
