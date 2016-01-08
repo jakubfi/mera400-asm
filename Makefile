@@ -3,7 +3,7 @@ EMDAS=emdas
 EMLIN=emlin
 EMELF=emelfread
 
-PROJ=boot_winch.bin
+PROJ=bootw.bin
 
 all:	$(PROJ)
 
@@ -11,7 +11,7 @@ all:	$(PROJ)
 	$(EMAS) -o $@ -Oraw $<
 
 dasm: $(PROJ)
-	$(EMDAS) -o $(PROJ).S $(PROJ)
+	$(EMDAS) -o $(PROJ).asm $(PROJ)
 
 clean:
-	rm -f $(OBJ) $(PROJ) $(PROJ).S $(PROJ).bin
+	rm -f $(PROJ) $(PROJ).asm
