@@ -14,6 +14,8 @@ ten:	.word	10
 minus1:	.word	-1
 
 ; ------------------------------------------------------------------------
+; Print two characters
+;
 ; r1 - two characters to print
 ; r2 - device specification
 ; RETURN: r1 - operation result
@@ -36,6 +38,8 @@ put2c:
 	uj	[put2c]
 
 ; ------------------------------------------------------------------------
+; Print 0-terminated string
+;
 ; r1 - address of a 0-terminated string to print
 ; r2 - device specification
 ; RETURN: r1 - operation result
@@ -63,6 +67,8 @@ puts:
 	uj	[puts]
 
 ; ------------------------------------------------------------------------
+; Write bytes to a device
+;
 ; r1 - address of the buffer
 ; r2 - device specification
 ; r3 - byte count
@@ -93,6 +99,8 @@ write:
 	uj	[write]
 
 ; ------------------------------------------------------------------------
+; Write words to a device
+;
 ; r1 - word address of the buffer
 ; r2 - device specification
 ; r3 - word count
@@ -130,6 +138,8 @@ writew:
 	uj	[writew]
 
 ; ------------------------------------------------------------------------
+; Read bytes from device
+;
 ; r1 - address of the buffer
 ; r2 - device specification
 ; r3 - byte count
@@ -162,6 +172,8 @@ read:
 	uj	[read]
 
 ; ------------------------------------------------------------------------
+; Read words from device
+;
 ; r1 - word address of the buffer
 ; r2 - device specification
 ; r3 - word count
@@ -203,6 +215,8 @@ readw:
 	uj	[readw]
 
 ; ------------------------------------------------------------------------
+; Read string until a newline
+;
 ; r1 - address of the buffer
 ; r2 - device number
 readln:
@@ -230,6 +244,8 @@ readln:
 	uj	[readln]
 
 ; ------------------------------------------------------------------------
+; Convert number to a binary ascii representation
+;
 ; r1 - value
 ; r2 - buffer address
 bin2asc:
@@ -256,6 +272,8 @@ bin2asc:
 	uj	[bin2asc]
 
 ; ------------------------------------------------------------------------
+; Convert number to a hex ascii representation
+;
 ; r1 - value
 ; r2 - buffer address
 hex2asc:
@@ -281,6 +299,8 @@ hex2asc:
 	uj	[hex2asc]
 
 ; ------------------------------------------------------------------------
+; Convert number to a unsigned ascii representation
+;
 ; r1 - value
 ; r2 - buffer address
 ; RETURN: none
@@ -325,6 +345,8 @@ unsigned2asc:
 	uj	[unsigned2asc]
 
 ; ------------------------------------------------------------------------
+; Convert number to a signed ascii representation
+;
 ; r1 - value
 ; r2 - buffer address
 ; RETURN: none
@@ -346,6 +368,8 @@ signed2asc:
 	uj	[signed2asc]
 
 ; ------------------------------------------------------------------------
+; Copy n characters of a string
+;
 ; r1 - dest
 ; r2 - src
 ; r3 - count
@@ -370,6 +394,8 @@ strncpy:
 	uj	[strncpy]
 
 ; ------------------------------------------------------------------------
+; Copy a 0-terminated string
+;
 ; r1 - dest
 ; r2 - src
 strcpy:
@@ -381,6 +407,8 @@ strcpy:
 	uj	[strcpy]
 
 ; ------------------------------------------------------------------------
+; Get string length
+;
 ; r1 - string address
 ; RETURN: r1 - length
 strlen:
@@ -399,6 +427,8 @@ strlen:
 	uj	[strlen]
 
 ; ------------------------------------------------------------------------
+; Convert ascii encoded number to a value
+;
 ; r1 - string addres
 ; RETURN: r1 - integer
 atoi:
@@ -437,6 +467,8 @@ atoi:
 	uj	[atoi]
 
 ; ------------------------------------------------------------------------
+; Calculate control sum over a buffer
+;
 ; r1 - address
 ; r2 - length (words)
 ; RETURN: r1 - control sum
@@ -455,6 +487,8 @@ ctlsum:
 	uj	[ctlsum]
 
 ; ------------------------------------------------------------------------
+; Set memory region to a value
+;
 ; r1 - address
 ; r2 - length (words)
 ; r3 - filler word
@@ -472,6 +506,8 @@ memset:
 	uj	[memset]
 
 ; ------------------------------------------------------------------------
+; Copy memory contents
+;
 ; r1 - dst
 ; r2 - src
 ; r3 - len
