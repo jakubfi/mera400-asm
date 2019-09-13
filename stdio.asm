@@ -36,13 +36,14 @@ put2c:
 	uj	[put2c]
 
 ; ------------------------------------------------------------------------
-; r1 - byte address of a 0-terminated string to print
+; r1 - address of a 0-terminated string to print
 ; r2 - device specification
 ; RETURN: r1 - operation result
 puts:
 	.res	1
 	rw	r5, tmpregs
 
+	slz	r1
 	lw	r5, r1 ; string address
 
 .loop:
@@ -62,7 +63,7 @@ puts:
 	uj	[puts]
 
 ; ------------------------------------------------------------------------
-; r1 - byte address of the buffer
+; r1 - address of the buffer
 ; r2 - device specification
 ; r3 - byte count
 ; RETURN: r1 - operation result
@@ -70,6 +71,7 @@ write:
 	.res	1
 	rl	tmpregs
 
+	slz	r1
 	lw	r5, r1 ; buf addr
 	lw	r6, r1
 	aw	r6, r3 ; end address
@@ -128,7 +130,7 @@ writew:
 	uj	[writew]
 
 ; ------------------------------------------------------------------------
-; r1 - byte address of the buffer
+; r1 - address of the buffer
 ; r2 - device specification
 ; r3 - byte count
 ; RETURN: r1 - operation result
@@ -136,6 +138,7 @@ read:
 	.res	1
 	rl	tmpregs
 
+	slz	r1
 	lw	r5, r1 ; buffer addr
 	lw	r6, r1
 	aw	r6, r3
@@ -200,12 +203,13 @@ readw:
 	uj	[readw]
 
 ; ------------------------------------------------------------------------
-; r1 - byte address of the buffer
+; r1 - address of the buffer
 ; r2 - device number
 readln:
 	.res	1
 	rl	tmpregs
 
+	slz	r1
 	lw	r7, r1 ; buffer addr
 	lw	r5, r2 ; device
 
@@ -227,10 +231,11 @@ readln:
 
 ; ------------------------------------------------------------------------
 ; r1 - value
-; r2 - buffer byte address
+; r2 - buffer address
 bin2asc:
 	.res	1
 
+	slz	r1
 	lwt	r4, -16
 .loop:
 	; '0' or '1'?
@@ -252,10 +257,11 @@ bin2asc:
 
 ; ------------------------------------------------------------------------
 ; r1 - value
-; r2 - buffer byte address
+; r2 - buffer address
 hex2asc:
 	.res	1
 
+	slz	r1
 	lwt	r4, 4 ; 4 digits
 .loop:
 	shc	r1, -4 ; shift quad into position
@@ -276,11 +282,12 @@ hex2asc:
 
 ; ------------------------------------------------------------------------
 ; r1 - value
-; r2 - buffer byte address
+; r2 - buffer address
 ; RETURN: none
 unsigned2asc:
 	.res	1
 
+	slz	r1
 	lw	r4, divs ; current divider
 	lw	r3, r2 ; buffer address
 	lw	r2, r1 ; value
@@ -319,11 +326,12 @@ unsigned2asc:
 
 ; ------------------------------------------------------------------------
 ; r1 - value
-; r2 - buffer byte address
+; r2 - buffer address
 ; RETURN: none
 signed2asc:
 	.res	1
 
+	slz	r1
 	sxu	r1
 	bb	r0, ?X
 	ujs	.go ; if number is positive or 0
@@ -338,12 +346,14 @@ signed2asc:
 	uj	[signed2asc]
 
 ; ------------------------------------------------------------------------
-; r1 - dest (byte address)
-; r2 - src (byte address)
+; r1 - dest
+; r2 - src
 ; r3 - count
 strncpy:
 	.res	1
 
+	slz	r1
+	slz	r2
 	cwt	r3, 0
 	jes	.done
 
@@ -371,11 +381,12 @@ strcpy:
 	uj	[strcpy]
 
 ; ------------------------------------------------------------------------
-; r1 - string byte address
+; r1 - string address
 ; RETURN: r1 - length
 strlen:
 	.res	1
 
+	slz	r1
 	lw	r2, r1
 	lwt	r1, 0
 	zlb	r4
@@ -388,11 +399,12 @@ strlen:
 	uj	[strlen]
 
 ; ------------------------------------------------------------------------
-; r1 - string byte addres
+; r1 - string addres
 ; RETURN: r1 - integer
 atoi:
 	.res	1
 
+	slz	r1
 	lw	r3, r1 ; address
 	lwt	r2, 0 ; the integer
 	lwt	r1, 0 ; clear before MW
