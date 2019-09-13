@@ -465,8 +465,8 @@ memset:
 	jes	.done
 
 .loop:
-	rw	r3, r1
-	awt	r1, 1
+
+	ri	r1, r3
 	drb	r2, .loop
 .done:
 	uj	[memset]
