@@ -5,7 +5,7 @@
 crc16:
 	.const	CRC_INIT 0x1d0f
 	.res	1
-	rl	tmpregs
+	rl	.regs
 
 	slz	r1
 	lw	r3, r1		; r3 = buffer address
@@ -47,7 +47,8 @@ crc16:
 	awt	r2, -1		; len--
 	ujs	.loop
 .done:
-	ll	tmpregs
+	ll	.regs
 	uj	[crc16]
+.regs:	.res	3
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas
