@@ -1,6 +1,6 @@
 ; ------------------------------------------------------------------------
 ; Get a reasonably random 32-bit number.
-; It is obtained by interrupting a tight loop with timer interrupt,
+; It is obtained by interrupting a tight loop with the timer interrupt,
 ; each time storing two least significant bits of the return address
 ; RETURN: [r1, r2] - 32-bit random number
 tmrandom:
@@ -80,6 +80,7 @@ umul:
 
 ; ------------------------------------------------------------------------
 ; Park-Miller-Carta pseudo-random number generator implementation for MERA-400
+;
 ; RETURN: [r1, r2] - random 31-bit number
 urand:	.res	1
 
@@ -131,6 +132,7 @@ urand:	.res	1
 
 ; ------------------------------------------------------------------------
 ; Seed the PRNG
+;
 ; in: [r1, r2] - seed
 seed:	.res	1
 	rd	urand.seed
@@ -138,6 +140,7 @@ seed:	.res	1
 
 ; ------------------------------------------------------------------------
 ; Fill buffer with random data
+;
 ; r1 - buffer address
 ; r2 - words to fill
 rndfill:
