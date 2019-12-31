@@ -479,7 +479,7 @@ ctlsum:
 	cwt	r2, 0
 	jes	.done
 
-	lwt	r1, -1
+	awt	r1, -1
 .loop:
 	aw	r3, [r1+r2]
 	drb	r2, .loop
@@ -520,6 +520,7 @@ memcpy:
 	awt	r2, 1
 	drb	r3, .loop
 .done:
+	lw	r1, r3
 	uj	[memcpy]
 
 ; ------------------------------------------------------------------------
@@ -532,7 +533,7 @@ memcmp:
 	.res	1
 
 	cwt	r3, 0
-	jes	.nowork
+	jes	.done
 	awt	r1, -1
 	awt	r2, -1
 
@@ -543,7 +544,6 @@ memcmp:
 	drb	r3, .loop
 .done:
 	lw	r1, r3
-.nowork:
 	uj	[memcmp]
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas
