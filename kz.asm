@@ -6,6 +6,8 @@
 imask_noch:
         .word   IMASK_ALL & ~(IMASK_CPU_H | IMASK_GROUP_L | IMASK_ALL_CH)
 
+kz_dev_waiting:
+	.res	1
 kz_last_intspec:
 	.word	1
 
@@ -39,7 +41,8 @@ kz_init:
 
 ; ------------------------------------------------------------------------
 kz_irq:
-	rws	r4, .regs
+	rws	r4, .r4
+	rws	r7, .r7
 
 	lw	r4, [kz_idle]
 	cwt	r4, 0
@@ -47,6 +50,11 @@ kz_irq:
 
 	md	[STACKP]
 	lw	r4, [-SP_SPEC]
+
+	lw	r7, 0b111\10
+	bs	r4, [kz_dev_waiting]
+	ujs	.dev_mismatch
+
 	shc	r4, 8
 	zlb	r4
 	rw	r4, kz_last_intspec
@@ -58,9 +66,14 @@ kz_irq:
 	rw	r4, -SP_IC
 	rz	kz_idle
 .done:
-	lws	r4, .regs
+	lws	r4, .r4
+	lws	r7, .r7
 	lip
-.regs:	.res	1
+.dev_mismatch:
+	hlt	077
+	ujs	.dev_mismatch
+.r4:	.res	1
+.r7:	.res	1
 
 ; ------------------------------------------------------------------------
 kz_idle:
@@ -84,9 +97,11 @@ kz_reset:
 ; ------------------------------------------------------------------------
 ; r2 - device specification as for IN/OU
 ; RETURN: r1 - result
+; FIXME: to nie będzie działać
 kz_detach:
 	.res	1
 .retry:	im	imask_noch
+	rw	r2, kz_dev_waiting
 
 	ou	r2, r2 + KZ_CMD_DEV_DETACH
 	.word	.no, .en, .ok, .pe
@@ -103,12 +118,47 @@ kz_detach:
 	uj	[kz_detach]
 
 ; ------------------------------------------------------------------------
+; r1 - floppy address specification
+; r2 - device specification as for IN/OU
+; RETURN: r1 - result
+kz_seek:
+	.res	1
+	rw	r2, kz_dev_waiting
+.retry:
+	ou	r1, r2 + KZ_CMD_CTL4
+	.word	.no, .retry, .ok, .pe
+.no:	lwt	r1, RET_NODEV
+	ujs	.done
+.pe:
+.ok:	lwt	r1, RET_OK
+.done:
+	uj	[kz_seek]
+
+; ------------------------------------------------------------------------
+; r1 - floppy address specification
+; r2 - device specification as for IN/OU
+; RETURN: r1 - result
+kz_wrseek:
+	.res	1
+	rw	r2, kz_dev_waiting
+.retry:
+	ou	r1, r2 + KZ_CMD_CTL1
+	.word	.no, .retry, .ok, .pe
+.no:	lwt	r1, RET_NODEV
+	ujs	.done
+.pe:
+.ok:	lwt	r1, RET_OK
+.done:
+	uj	[kz_wrseek]
+
+; ------------------------------------------------------------------------
 ; r1 - character to print (on right byte)
 ; r2 - device specification as for IN/OU
 ; RETURN: r1 - operation result
 kz_putc:
 	.res	1
 .retry:	im	imask_noch
+	rw	r2, kz_dev_waiting
 
 	ou	r1, r2 + KZ_CMD_DEV_WRITE
 	.word	.no, .en, .ok, .pe
@@ -130,12 +180,17 @@ kz_putc:
 kz_getc:
 	.res	1
 .retry:	im	imask_noch
+	rw	r2, kz_dev_waiting
 
 	in	r1, r2 + KZ_CMD_DEV_READ
 	.word	.no, .en, .ok, .pe
 
 .en:	lj	kz_idle
-	ujs	.retry
+	lwt	r1, KZ_INT_DEVICE_READY
+	cl	r1, [kz_last_intspec]
+	jes	.retry
+	lwt	r1, RET_IOERR
+	ujs	.ok
 .pe:	lwt	r1, RET_PARITY
 	ujs	.ok
 .no:	lwt	r1, RET_NODEV

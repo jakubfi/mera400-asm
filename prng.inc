@@ -136,4 +136,34 @@ seed:	.res	1
 	rd	urand.seed
 	uj	[seed]
 
+; ------------------------------------------------------------------------
+; Fill buffer with random data
+; r1 - buffer address
+; r2 - words to fill
+rndfill:
+	.res	1
+
+	rl	.regs
+
+	cwt	r2, 0
+	jes	.done
+
+	lw	r5, r1
+	lw	r6, r2
+.loop:
+	lj	urand
+	rw	r1, r5
+	awt	r5, 1
+	awt	r6, -1
+	jz	.done
+	rw	r2, r5
+	awt	r5, 1
+	awt	r6, -1
+	jz	.done
+	ujs	.loop
+.done:
+	ll	.regs
+	uj	[rndfill]
+.regs:	.res	3
+
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas

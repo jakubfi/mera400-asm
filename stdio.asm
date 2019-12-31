@@ -497,9 +497,7 @@ memset:
 
 	cwt	r2, 0
 	jes	.done
-
 .loop:
-
 	ri	r1, r3
 	drb	r2, .loop
 .done:
@@ -522,5 +520,31 @@ memcpy:
 	drb	r3, .loop
 .done:
 	uj	[memcpy]
+
+; ------------------------------------------------------------------------
+; Compare memory contents
+;
+; r1 - buffer 1 address
+; r2 - buffer 2 address
+; r3 - word count
+memcmp:
+	.res	1
+
+	cwt	r3, 0
+	jes	.done
+.loop:
+	lw	r4, [r1]
+	cl	r4, [r2]
+	jes	.ok
+	ujs	.done
+.ok:
+	awt	r3, -1
+	awt	r1, 1
+	awt	r2, 1
+	cwt	r3, 0
+	jgs	.loop
+.done:
+	lw	r1, r3
+	uj	[memcmp]
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas
