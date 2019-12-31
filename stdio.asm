@@ -531,20 +531,18 @@ memcmp:
 	.res	1
 
 	cwt	r3, 0
-	jes	.done
+	jes	.nowork
+	awt	r1, -1
+	awt	r2, -1
+
 .loop:
-	lw	r4, [r1]
-	cl	r4, [r2]
-	jes	.ok
-	ujs	.done
-.ok:
-	awt	r3, -1
-	awt	r1, 1
-	awt	r2, 1
-	cwt	r3, 0
-	jgs	.loop
+	lw	r4, [r1+r3]
+	cl	r4, [r2+r3]
+	blc	?E
+	drb	r3, .loop
 .done:
 	lw	r1, r3
+.nowork:
 	uj	[memcmp]
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas
