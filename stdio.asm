@@ -478,9 +478,10 @@ ctlsum:
 	lwt	r3, 0
 	cwt	r2, 0
 	jes	.done
+
+	lwt	r1, -1
 .loop:
-	aw	r3, [r1]
-	awt	r1, 1
+	aw	r3, [r1+r2]
 	drb	r2, .loop
 .done:
 	lw	r1, r3
