@@ -299,15 +299,13 @@ hex2asc:
 	uj	[hex2asc]
 
 ; ------------------------------------------------------------------------
-; Convert number to a unsigned ascii representation
+; Convert number to a unsigned ascii representation (byte address, internal)
 ;
 ; r1 - value
-; r2 - buffer address
+; r2 - byte buffer address
 ; RETURN: none
-unsigned2asc:
+__unsigned2asc_byte_addr:
 	.res	1
-
-	slz	r2
 
 	lw	r4, divs ; current divider
 	lw	r3, r2 ; buffer address
@@ -343,6 +341,18 @@ unsigned2asc:
 	lwt	r2, 0 ; store ending '\0'
 	rb	r2, r3
 
+	uj	[__unsigned2asc_byte_addr]
+
+; ------------------------------------------------------------------------
+; Convert number to a unsigned ascii representation
+;
+; r1 - value
+; r2 - buffer address
+; RETURN: none
+unsigned2asc:
+	.res	1
+	slz	r2
+	lj	__unsigned2asc_byte_addr
 	uj	[unsigned2asc]
 
 ; ------------------------------------------------------------------------
@@ -354,18 +364,19 @@ unsigned2asc:
 signed2asc:
 	.res	1
 
-	slz	r1
-	sxu	r1
-	bb	r0, ?X
-	ujs	.go ; if number is positive or 0
+	slz	r2
 
-	; if number is negative, store '-'
+	cw	r1, 0
+	jgs	.go
+	jes	.go
+
+	; if number is negative, neagte and store '-'
 	nga	r1
 	lw	r4, '-'
 	rb	r4, r2
 	awt	r2, 1
 .go:
-	lj	unsigned2asc
+	lj	__unsigned2asc_byte_addr
 	uj	[signed2asc]
 
 ; ------------------------------------------------------------------------

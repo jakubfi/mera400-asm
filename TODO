@@ -1,0 +1,2 @@
+strcpy, strncpy - POSIX, coś nie działa, testy zrobić
+bin2asc, hex2asc - leading zeros?
