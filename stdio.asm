@@ -251,7 +251,7 @@ readln:
 bin2asc:
 	.res	1
 
-	slz	r1
+	slz	r2
 	lwt	r4, -16
 .loop:
 	; '0' or '1'?
@@ -279,7 +279,7 @@ bin2asc:
 hex2asc:
 	.res	1
 
-	slz	r1
+	slz	r2
 	lwt	r4, 4 ; 4 digits
 .loop:
 	shc	r1, -4 ; shift quad into position
@@ -307,18 +307,19 @@ hex2asc:
 unsigned2asc:
 	.res	1
 
-	slz	r1
+	slz	r2
+
 	lw	r4, divs ; current divider
 	lw	r3, r2 ; buffer address
 	lw	r2, r1 ; value
 
 	; special case for '0'
-	cwt	r2, 0
+	cwt	r1, 0
 	blc	?E
 	ujs	.last
 
 .align:
-	cw	r2, [r4]
+	cl	r2, [r4]
 	blc	?L
 	irb	r4, .align
 
