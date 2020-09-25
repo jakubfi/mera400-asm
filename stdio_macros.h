@@ -54,8 +54,20 @@
 	lw	r3, len		\
 	lj	write
 
+#define writew(buf, dev, len)	\
+	lw	r1, buf		\
+	lw	r2, dev		\
+	lw	r3, len		\
+	lj	writew
+
 #define read(buf, dev, len)	\
 	lw	r1, buf		\
 	lw	r2, dev		\
 	lw	r3, len		\
 	lj	read
+
+#define readw(buf, dev, len)	\
+	lw	r1, buf		\
+	lw	r2, dev		\
+	lw	r3, len		\
+	lj	readw
