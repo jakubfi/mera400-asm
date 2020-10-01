@@ -3,9 +3,6 @@
 	.const	RET_PARITY -2
 	.const	RET_IOERR -3
 
-imask_noch:
-        .word   IMASK_ALL & ~(IMASK_CPU_H | IMASK_GROUP_L | IMASK_ALL_CH)
-
 kz_dev_waiting:
 	.res	1
 kz_last_intspec:
@@ -70,8 +67,8 @@ kz_irq:
 	lw	r4, [kz_idle]
 	md	[STACKP]
 	rw	r4, -SP_IC
-	; inject empty interrupt mask
-	lw	r4, 0b1111111111_00_0000
+	; mask all channel interrupts upon return
+	lw	r4, IMASK_ALL_CH
 	md	[STACKP]
 	em	r4, -SP_SR
 	; clean the return address
