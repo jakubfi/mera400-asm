@@ -13,26 +13,17 @@ crc16_init:
 ; r1 - address of the buffer
 ; r2 - length (in bytes)
 ; RETURN: r1 - crc-16-ccitt
-crc16_cont:
-	.res	1
-	lj	_crc16
-	uj	[crc16_cont]
-
-; ------------------------------------------------------------------------
-; r1 - address of the buffer
-; r2 - length (in bytes)
-; RETURN: r1 - crc-16-ccitt
 crc16:
 	.res	1
 	lj	crc16_init
-	lj	_crc16
+	lj	crc16_cont
 	uj	[crc16]
 
 ; ------------------------------------------------------------------------
 ; r1 - address of the buffer
 ; r2 - length (in bytes)
 ; RETURN: r1 - crc-16-ccitt
-_crc16:
+crc16_cont:
 	.res	1
 	rl	.regs
 
@@ -78,7 +69,7 @@ _crc16:
 .done:
 	rw	r1, crc_val
 	ll	.regs
-	uj	[_crc16]
+	uj	[crc16_cont]
 .regs:	.res	3
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas
