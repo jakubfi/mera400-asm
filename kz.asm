@@ -71,8 +71,8 @@ kz_irq:
 	md	[STACKP]
 	rw	r4, -SP_IC
 	; inject empty interrupt mask
-	md	[STACKP]
 	lw	r4, 0b1111111111_00_0000
+	md	[STACKP]
 	em	r4, -SP_SR
 	; clean the return address
 	rz	kz_idle
