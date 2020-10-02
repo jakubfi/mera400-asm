@@ -62,6 +62,8 @@ kz_irq:
 	; was it 'medium end'? ignore if so
 	cw	r4, KZ_INT_MEDIUM_END
 	jes	.done
+	cw	r4, KZ_INT_DATA_LOST
+	jes	.data_lost
 
 	; inject the real return address onto stack
 	lw	r4, [kz_idle]
@@ -77,6 +79,9 @@ kz_irq:
 	lws	r4, .r4
 	lws	r7, .r7
 	lip
+.data_lost:
+	hlt	076
+	ujs	.data_lost
 .dev_mismatch:
 	hlt	077
 	ujs	.dev_mismatch
