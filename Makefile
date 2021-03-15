@@ -1,5 +1,5 @@
 PRJ=t64
-CFG=em400.cfg
+INI=em400.ini
 UPLOAD_PORT=/dev/ttyUSB0
 
 all: $(PRJ)
@@ -8,7 +8,7 @@ ${PRJ}: $(PRJ).asm
 	emas -o $(PRJ) -c mera400 -Oraw $(PRJ).asm
 
 emu: $(PRJ)
-	em400 -c $(CFG) -p $(PRJ)
+	em400 -c $(INI) -p $(PRJ)
 
 push: $(BIN)
 	embin -o $(UPLOAD_PORT) $(PRJ)
