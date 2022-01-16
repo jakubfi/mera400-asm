@@ -2,8 +2,6 @@ PRJ=t64
 INI=em400.ini
 UPLOAD_PORT=/dev/ttyUSB0
 
-all: $(PRJ)
-
 ${PRJ}: $(PRJ).asm
 	emas -o $(PRJ) -c mera400 -Oraw $(PRJ).asm
 
