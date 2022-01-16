@@ -10,26 +10,9 @@ kz_last_intspec:
 
 ; ------------------------------------------------------------------------
 ; r1 - channel number
-; r2 - UZ-DAT list (-1 terminated)
+; NOTE: it's the user's job to handle interrupt masks
 kz_init:
 	.res	1
-
-.loop:
-	lw	r3, [r2]
-	cwt	r3, -1
-	jes	.done
-
-	in	r3, r3 + KZ_CMD_DEV_READ
-	.word	.next, .next, .next, .next
-
-.next:	
-	awt	r2, 1
-	ujs	.loop
-
-.done:
-	; wait for UZ-DATs to get their states straight
-	lw	r4, -1000
-.wait:	irb	r4, .wait
 
 	lw	r4, kz_irq
 	rw	r4, INTV_CH0 + r1
