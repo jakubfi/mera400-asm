@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+
+import sys
+import serial
+import struct
+import os
+import time
+
+DEBUG = False
+
+class KZ():
+    def __init__(self, s, echo_cancel=False):
+        s.flushInput()
+        s.flushOutput()
+        self.s = s
+        self.echo_cancel = echo_cancel
+
+    def read_word(self):
+        res = self._read(2)
+        x = res[0]*256 + res[1]
+        if DEBUG:
+            print("Read word: {}".format(x))
+        return x
+
+    def read_byte(self):
+        x = ord(self._read(1))
+        if DEBUG:
+            print("Read byte: {}".format(x))
+        return x
+
+    def _read(self, cnt):
+        data = s.read(cnt)
+        return data
+
+    def _write(self, data):
+        res = s.write(data)
+        if self.echo_cancel:
+            dcheck = self._read(len(data))
+            if data != dcheck:
+                raise Exception("Echo mismatch!")
+        return res
+
+    def write_byte(self, x):
+        if DEBUG:
+            print("Write: {}".format(x))
+        data = bytes([x & 255])
+        return self._write(data)
+
+    def write_word(self, x):
+        if DEBUG:
+            print("Write: {}".format(x))
+        data = bytes([(x>>8) & 255, x & 255])
+        return self._write(data)
+
+    def write_bytes(self, data):
+        if DEBUG:
+            print("Write: {}".format([x for x in data]))
+        return self._write(data)
+
+
+if len(sys.argv) != 2:
+    print("Expecting a file name")
+    sys.exit(1)
+
+filename = sys.argv[1]
+
+s = serial.Serial("/dev/ttyUSB0",
+    baudrate = 9600,
+    bytesize = serial.EIGHTBITS,
+    parity = serial.PARITY_NONE,
+    stopbits = serial.STOPBITS_ONE,
+    timeout = None,
+    xonxoff = False,
+    rtscts = False,
+    dsrdtr = False)
+
+kz = KZ(s, echo_cancel=True)
+
+
+filesize = os.path.getsize(filename)
+
+f = open(filename, "rb")
+sectors = 0
+while True:
+    d = f.read(128)
+    sectors += 1
+    print(".", end='', flush=True)
+    if sectors % 26 == 0:
+        print("")
+    kz.write_word(len(d))
+    if not len(d):
+        break
+    kz.write_bytes(d)
+    result = kz.read_byte()
+    if result != 0xba:
+        raise Exception("Floppy write failed!")
+
+f.close()
+s.close()
+
