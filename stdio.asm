@@ -299,7 +299,7 @@ hex2asc:
 	uj	[hex2asc]
 
 ; ------------------------------------------------------------------------
-; Convert number to a unsigned ascii representation (byte address, internal)
+; Convert number to an unsigned ascii representation (byte address, internal)
 ;
 ; r1 - value
 ; r2 - byte buffer address
@@ -344,7 +344,7 @@ __unsigned2asc_byte_addr:
 	uj	[__unsigned2asc_byte_addr]
 
 ; ------------------------------------------------------------------------
-; Convert number to a unsigned ascii representation
+; Convert number to an unsigned ascii representation
 ;
 ; r1 - value
 ; r2 - buffer address
@@ -354,6 +354,44 @@ unsigned2asc:
 	slz	r2
 	lj	__unsigned2asc_byte_addr
 	uj	[unsigned2asc]
+
+; ------------------------------------------------------------------------
+; Convert number to an unsigned ascii representation
+;
+; r1 - value
+; r2 - buffer address
+; RETURN: none
+unsigned2asc2:
+	.res	1
+	lw	r3, r2		; r3 - output buffer address
+	slz	r3		; make output buffer a byte address
+	lw	r2, r1		; r2 - value to convert
+	lw	r4, .buf	; r4 - temporary buffer
+.conv_loop:
+	lwt	r1, 0
+	dw	ten		; r2 = r2 / 10, r1 = r2 % 10
+	rw	r1, r4		; store remainder in .buf
+	cwt	r2, 0		; r2 == 0?
+	jes	.rev_loop	; yes
+	awt	r4, 1		; .buf++
+	ujs	.conv_loop
+
+.rev_loop:
+	lw	r1, [r4]	; r1 = [.buf]
+	aw	r1, '0'
+	rb	r1, r3		; append output byte
+	awt	r3, 1		; output++
+	awt	r4, -1		; .buf--
+	cw	r4, .buf	; < .buf ?
+	jls	.rev_end
+	ujs	.rev_loop
+
+.rev_end:
+	lwt	r1, 0		; store ending '\0'
+	rb	r1, r3
+
+	uj	[unsigned2asc2]
+.buf:	.res	6
 
 ; ------------------------------------------------------------------------
 ; Convert number to a signed ascii representation
