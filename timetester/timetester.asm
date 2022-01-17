@@ -43,10 +43,10 @@ str_buf:
 
 ; ------------------------------------------------------------------------
 timer_proc:
-	irb	r3, .kim	; if (r3 < 0) then next test loop
-	lw	r7, [measure]	; otherwise: load the exit adddres from last "measure" call
+	irb	r5, .kim	; if (r5 < 0) then next test loop
+	lw	r5, [measure]	; otherwise: load the exit adddres from last "measure" call
 	md	[STACKP]	; and replace pre-interrupt IC stored on stack with it, so the test loop
-	rw	r7, -SP_IC	; breaks, and control is transferred back to after the original "lj measure"
+	rw	r5, -SP_IC	; breaks, and control is transferred back to after the original "lj measure"
 .kim:	lip
 
 ; ------------------------------------------------------------------------
@@ -57,26 +57,25 @@ timer_proc:
 	.const	LOOP_2 2	; 2-words test loop
 ;  r5 - word 1
 ;  r6 - word 2
-; RETURN VALUE (exit through timer interrupt, but anyway):
-;  r1 - count, high
-;  r2 - count, low
+; RETURN VALUE (exit is through timer interrupt, but it's a return value anyway):
+;  r6 - count, high
+;  r7 - count, low
 measure:
 	.res	1
 
-	lwt	r1, 0		; loop counter, high
-	lwt	r2, 0		; loop counter, low
-	lw	r3, -(LOOPS+1)	; timer interrupt counter (+1 for the trigger)
-
-	cwt	r4, 0		; LOOP_NULL
-	jes	.instr_prepared	; done, no instruction inserted
-	rw	r5, .loop_1	; at least one instruction needs to be inserted
-	rw	r5, .loop_2	; do it for both loops
-	cwt	r4, 1		; LOOP_1
-	jes	.instr_prepared	; done, one instruction inserted
-	rw	r6, .loop_2+1	; LOOP_2 - insert second instruction
-
+	cwt	r4, 0		; if LOOP_NULL ...
+	jes	.instr_prepared	; ... done, no instruction inserted, else:
+	rw	r5, .i11	; at least one instruction needs to be inserted
+	rw	r5, .i21	; do it for both loops
+	cwt	r4, 1		; if LOOP_1 ...
+	jes	.instr_prepared	; ... done, one instruction inserted, else:
+	rw	r6, .i22	; LOOP_2 - insert second instruction
 .instr_prepared:
 	lw	r4, [.jmptab+r4]
+
+	lw	r5, -(LOOPS+1)	; timer interrupt counter (+1 for the trigger)
+	lwt	r6, 0		; loop counter, high
+	lwt	r7, 0		; loop counter, low
 
 	fi	izero		; clear interrupts
 	im	timer_enable	; enable timer interrupt
@@ -84,19 +83,19 @@ measure:
 	uj	r4		; jump to selected test loop
 
 .loop_null:
-	awt	r2, 1
-	ac	r1, 0
+	awt	r7, 1
+	ac	r6, 0
 	ujs	.loop_null
 .loop_1:
-	nop
-	awt	r2, 1
-	ac	r1, 0
+.i11:	nop
+	awt	r7, 1
+	ac	r6, 0
 	ujs	.loop_1
 .loop_2:
-	nop
-	nop
-	awt	r2, 1
-	ac	r1, 0
+.i21:	nop
+.i22:	nop
+	awt	r7, 1
+	ac	r6, 0
 	ujs	.loop_2
 
 	uj	[measure]	; never reached, [measure] is popped in timer handler
@@ -129,14 +128,14 @@ main_loop:
 	lwt	r4, LOOP_NULL
 	lj	measure
 	im	izero
-	rw	r2, cal_loops
+	rw	r7, cal_loops
 
 	; measure
 	lwt	r4, LOOP_1
-	lw	r5, r0 lw r7, r7
+	lw	r5, r0 lw r1, r1
 	lj	measure
 	im	izero
-	rw	r2, test_loops
+	rw	r7, test_loops
 
 	; calculate result
 	ld	test_time_ns
@@ -151,6 +150,28 @@ main_loop:
 
 	; print result
 	lw	r1, [measured_time_ns]
+	lw	r2, str_buf
+	lj	unsigned2asc
+	lw	r1, str_buf
+	lw	r2, PC
+	lj	puts
+
+	lw	r1, ' '
+	lw	r2, PC
+	lj	putc
+
+	lw	r1, [cal_loops]
+	lw	r2, str_buf
+	lj	unsigned2asc
+	lw	r1, str_buf
+	lw	r2, PC
+	lj	puts
+
+	lw	r1, ' '
+	lw	r2, PC
+	lj	putc
+
+	lw	r1, [test_loops]
 	lw	r2, str_buf
 	lj	unsigned2asc
 	lw	r1, str_buf
