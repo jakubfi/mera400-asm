@@ -34,8 +34,8 @@ crc16_cont:
 	cwt	r2, 1		; len<1 ?
 	jls	.done
 
+	shc	r1, 8
 	lw	r4, r1
-	shc	r4, 8
 	zlb	r4		; x = crc >> 8;
 
 	lb	r5, r3
@@ -48,7 +48,6 @@ crc16_cont:
 
 	xr	r4, r6		; x = x ^ t;
 
-	shc	r1, -8
 	zrb	r1		; crc = crc << 8;
 	xr	r1, r4		; crc = crc ^ x;
 
