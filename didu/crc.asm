@@ -1,21 +1,41 @@
+	.const	CRC_INIT 0x1d0f
+crc_val:
+	.word	CRC_INIT
+
+; ------------------------------------------------------------------------S
+crc16_init:
+	.res	1
+	lw	r3, CRC_INIT
+	rw	r3, crc_val
+	uj	[crc16_init]
+
 ; ------------------------------------------------------------------------
 ; r1 - address of the buffer
 ; r2 - length (in bytes)
 ; RETURN: r1 - crc-16-ccitt
 crc16:
-	.const	CRC_INIT 0x1d0f
 	.res	1
-	rl	tmpregs
+	lj	crc16_init
+	lj	crc16_cont
+	uj	[crc16]
+
+; ------------------------------------------------------------------------
+; r1 - address of the buffer
+; r2 - length (in bytes)
+; RETURN: r1 - crc-16-ccitt
+crc16_cont:
+	.res	1
+	rl	.regs
 
 	slz	r1
 	lw	r3, r1		; r3 = buffer address
-	lw	r1, CRC_INIT	; crc = 0x1D0F;
+	lw	r1, [crc_val]
 .loop:
 	cwt	r2, 1		; len<1 ?
 	jls	.done
 
+	shc	r1, 8
 	lw	r4, r1
-	shc	r4, 8
 	zlb	r4		; x = crc >> 8;
 
 	lb	r5, r3
@@ -28,7 +48,6 @@ crc16:
 
 	xr	r4, r6		; x = x ^ t;
 
-	shc	r1, -8
 	zrb	r1		; crc = crc << 8;
 	xr	r1, r4		; crc = crc ^ x;
 
@@ -47,7 +66,9 @@ crc16:
 	awt	r2, -1		; len--
 	ujs	.loop
 .done:
-	ll	tmpregs
-	uj	[crc16]
+	rw	r1, crc_val
+	ll	.regs
+	uj	[crc16_cont]
+.regs:	.res	3
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas

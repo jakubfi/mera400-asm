@@ -251,7 +251,7 @@ readln:
 bin2asc:
 	.res	1
 
-	slz	r1
+	slz	r2
 	lwt	r4, -16
 .loop:
 	; '0' or '1'?
@@ -279,7 +279,7 @@ bin2asc:
 hex2asc:
 	.res	1
 
-	slz	r1
+	slz	r2
 	lwt	r4, 4 ; 4 digits
 .loop:
 	shc	r1, -4 ; shift quad into position
@@ -299,26 +299,25 @@ hex2asc:
 	uj	[hex2asc]
 
 ; ------------------------------------------------------------------------
-; Convert number to a unsigned ascii representation
+; Convert number to an unsigned ascii representation (byte address, internal)
 ;
 ; r1 - value
-; r2 - buffer address
+; r2 - byte buffer address
 ; RETURN: none
-unsigned2asc:
+__unsigned2asc_byte_addr:
 	.res	1
 
-	slz	r1
 	lw	r4, divs ; current divider
 	lw	r3, r2 ; buffer address
 	lw	r2, r1 ; value
 
 	; special case for '0'
-	cwt	r2, 0
+	cwt	r1, 0
 	blc	?E
 	ujs	.last
 
 .align:
-	cw	r2, [r4]
+	cl	r2, [r4]
 	blc	?L
 	irb	r4, .align
 
@@ -342,7 +341,57 @@ unsigned2asc:
 	lwt	r2, 0 ; store ending '\0'
 	rb	r2, r3
 
+	uj	[__unsigned2asc_byte_addr]
+
+; ------------------------------------------------------------------------
+; Convert number to an unsigned ascii representation
+;
+; r1 - value
+; r2 - buffer address
+; RETURN: none
+unsigned2asc:
+	.res	1
+	slz	r2
+	lj	__unsigned2asc_byte_addr
 	uj	[unsigned2asc]
+
+; ------------------------------------------------------------------------
+; Convert number to an unsigned ascii representation
+;
+; r1 - value
+; r2 - buffer address
+; RETURN: none
+unsigned2asc2:
+	.res	1
+	lw	r3, r2		; r3 - output buffer address
+	slz	r3		; make output buffer a byte address
+	lw	r2, r1		; r2 - value to convert
+	lw	r4, .buf	; r4 - temporary buffer
+.conv_loop:
+	lwt	r1, 0
+	dw	ten		; r2 = r2 / 10, r1 = r2 % 10
+	rw	r1, r4		; store remainder in .buf
+	cwt	r2, 0		; r2 == 0?
+	jes	.rev_loop	; yes
+	awt	r4, 1		; .buf++
+	ujs	.conv_loop
+
+.rev_loop:
+	lw	r1, [r4]	; r1 = [.buf]
+	aw	r1, '0'
+	rb	r1, r3		; append output byte
+	awt	r3, 1		; output++
+	awt	r4, -1		; .buf--
+	cw	r4, .buf	; < .buf ?
+	jls	.rev_end
+	ujs	.rev_loop
+
+.rev_end:
+	lwt	r1, 0		; store ending '\0'
+	rb	r1, r3
+
+	uj	[unsigned2asc2]
+.buf:	.res	6
 
 ; ------------------------------------------------------------------------
 ; Convert number to a signed ascii representation
@@ -353,18 +402,19 @@ unsigned2asc:
 signed2asc:
 	.res	1
 
-	slz	r1
-	sxu	r1
-	bb	r0, ?X
-	ujs	.go ; if number is positive or 0
+	slz	r2
 
-	; if number is negative, store '-'
+	cw	r1, 0
+	jgs	.go
+	jes	.go
+
+	; if number is negative, neagte and store '-'
 	nga	r1
 	lw	r4, '-'
 	rb	r4, r2
 	awt	r2, 1
 .go:
-	lj	unsigned2asc
+	lj	__unsigned2asc_byte_addr
 	uj	[signed2asc]
 
 ; ------------------------------------------------------------------------
@@ -478,9 +528,10 @@ ctlsum:
 	lwt	r3, 0
 	cwt	r2, 0
 	jes	.done
+
+	awt	r1, -1
 .loop:
-	aw	r3, [r1]
-	awt	r1, 1
+	aw	r3, [r1+r2]
 	drb	r2, .loop
 .done:
 	lw	r1, r3
@@ -497,9 +548,7 @@ memset:
 
 	cwt	r2, 0
 	jes	.done
-
 .loop:
-
 	ri	r1, r3
 	drb	r2, .loop
 .done:
@@ -521,6 +570,30 @@ memcpy:
 	awt	r2, 1
 	drb	r3, .loop
 .done:
+	lw	r1, r3
 	uj	[memcpy]
+
+; ------------------------------------------------------------------------
+; Compare memory contents
+;
+; r1 - buffer 1 address
+; r2 - buffer 2 address
+; r3 - word count
+memcmp:
+	.res	1
+
+	cwt	r3, 0
+	jes	.done
+	awt	r1, -1
+	awt	r2, -1
+
+.loop:
+	lw	r4, [r1+r3]
+	cl	r4, [r2+r3]
+	blc	?E
+	drb	r3, .loop
+.done:
+	lw	r1, r3
+	uj	[memcmp]
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas

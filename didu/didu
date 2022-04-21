@@ -1,0 +1,487 @@
+#!/usr/bin/env python3
+
+from http.client import OK
+from multiprocessing.sharedctypes import Value
+from pathlib import Path
+import sys
+import serial
+import struct
+from crc_algorithms import Crc
+import itertools
+import argparse
+import time
+import random
+import re
+
+# ------------------------------------------------------------------------
+class FlopError(Exception):
+    pass
+
+# ------------------------------------------------------------------------
+class ImageSizeError(Exception):
+    pass
+
+# ------------------------------------------------------------------------
+class DataPresent(Exception):
+    pass
+
+
+# ------------------------------------------------------------------------
+class Flop:
+
+    SECT_LEN = 128
+    SPT = 26
+    TRACKS = 77
+
+    CMD_RESET = 1
+    CMD_SEEK_RD = 2
+    CMD_READ = 3
+
+    DRIVE_1 = 0b000
+    DRIVE_2 = 0b001
+    DRIVE_3 = 0b100
+    DRIVE_4 = 0b101
+    SIDE_A = 0
+    SIDE_B = 1
+
+    RESP_UNKNOWN    = 0
+    RESP_OK         = 1
+    RESP_BAD_CMD    = 2
+    RESP_BAD_CRC    = 3
+    RESP_IOERR      = 4
+
+    interrupt_names = {
+        0b00001: 'READY',
+        0b00100: 'DISK END',
+        0b00010: 'HW ERROR',
+        0b11010: 'PARITY OR SECTOR NOT FOUND',
+        0b01010: 'CRC ERROR',
+        0b10010: 'SECTOR MARKED BAD',
+        0b00000: 'INTERRUPT EXPIRED',
+    }
+
+    status_names = {
+        0: 'invalid response',
+        1: 'OK',
+        2: 'unknown command',
+        3: 'CRC error',
+        4: 'I/O error',
+    }
+
+    # ------------------------------------------------------------------------
+    def __init__(self, device, speed, debug=False, cancel_echo=True):
+        self.debug = debug
+        self.cancel_echo = cancel_echo
+
+        self.port = serial.Serial(
+            device,
+            baudrate = speed,
+            bytesize = serial.EIGHTBITS,
+            parity = serial.PARITY_NONE,
+            stopbits = serial.STOPBITS_ONE,
+            timeout = None,
+            xonxoff = False,
+            rtscts = False,
+            dsrdtr = False
+        )
+ 
+        self.port.flushInput()
+        self.port.flushOutput()
+
+        self.crc = Crc(width = 16, poly = 0x1021, reflect_in = False, xor_in = 0x1D0F, reflect_out = False, xor_out = 0);
+
+    # ------------------------------------------------------------------------
+    def send_with_crc(self, fmt, data):
+        csum = self.crc.table_driven(struct.pack(fmt, *data))
+        buf = struct.pack(f"{fmt}H", *data, csum)
+        if self.debug:
+            print(f"Out: {data}, crc: {csum}, stream: {buf}")
+    
+        self.port.write(buf)
+        if self.cancel_echo:
+            self.port.read(len(buf))
+
+    # ------------------------------------------------------------------------
+    def recv_bytes_with_crc(self, length):
+        buf = self.port.read(length)
+        crc_received = struct.unpack(">H", self.port.read(2))[0]
+        crc_check = self.crc.table_driven(buf)
+        if self.debug:
+            print(f"In: {buf}, crc received: {crc_received}, crc calculated: {crc_check}")
+        if crc_received != crc_check:
+            raise FlopError("Received stream CRC error")
+        return buf
+
+    # ------------------------------------------------------------------------
+    def recv_with_crc(self, fmt):
+        length = struct.calcsize(fmt)
+        buf = self.recv_bytes_with_crc(length)
+        return struct.unpack_from(fmt, buf)
+
+    # ------------------------------------------------------------------------
+    def send_cmd(self, cmd, addr=0):
+        time.sleep(0.0)
+        self.send_with_crc(">HH", [cmd, addr])
+        (interrupt, status) = self.recv_with_crc(">BB")
+        if self.debug:
+            print(f"Int: {interrupt}, status: {status}")
+        if status != Flop.RESP_OK:
+            status_name = Flop.status_names[status]
+            message = f"Command error: {status_name}"
+            if status == Flop.RESP_IOERR:
+                interrupt_name = Flop.interrupt_names[interrupt]
+                message = (f"{message}, interrupt: {interrupt_name}")
+            raise FlopError(message)
+
+    # ------------------------------------------------------------------------
+    def reset(self):
+        self.send_cmd(Flop.CMD_RESET)
+
+    # ------------------------------------------------------------------------
+    def seek_rd(self, drive, side, track, sector):
+        # addr format: dddstttttttSSSSS
+        addr = (drive << 13) | (side << 12) | (track << 5) | sector
+        self.send_cmd(Flop.CMD_SEEK_RD, addr)
+
+    # ------------------------------------------------------------------------
+    def read_sector(self):
+        self.send_cmd(Flop.CMD_READ)
+        data = self.recv_bytes_with_crc(Flop.SECT_LEN)
+        return data
+
+
+# ------------------------------------------------------------------------
+class Sector:
+
+    UNKNOWN = 0
+    ERR = 1
+    OK = 2
+
+    def __init__(self, track, sector, data=None):
+        assert sector >= 1 and sector <= Flop.SPT
+        assert track >= 0 and track <= Flop.TRACKS - 1
+        self.track = track
+        self.sector = sector
+        self.data = data
+        if self.data:
+            self.status = Sector.OK
+        else:
+            self.status = Sector.UNKNOWN
+
+    def update(self, data):
+        assert data
+        assert len(data) == Flop.SECT_LEN
+
+        self.data = data
+        self.status = Sector.OK
+
+    def mark_invalid(self):
+        self.status = Sector.ERR
+        self.data = None
+
+    def mark_unknown(self):
+        self.status = Sector.UNKNOWN
+        self.data = None
+
+    def __bytes__(self):
+        return self.data if self.ok else b'?' * Flop.SECT_LEN
+
+    @property
+    def unknown(self):
+        return self.status == Sector.UNKNOWN
+    
+    @property
+    def err(self):
+        return self.status == Sector.ERR
+
+    @property
+    def ok(self):
+        return self.status == Sector.OK
+
+
+# ------------------------------------------------------------------------
+class FlopImage:
+
+    def __init__(self, image_name, old_format=False, start_track=0):
+        self.image_name = Path(image_name)
+        self.image_state = self.image_name.with_suffix('.state')
+        self.image = self._empty()
+
+        if self.image_name.exists():
+            if self.image_name.is_file():
+                if old_format:
+                    self._load_old(start_track)
+                else:
+                    self._load()
+            else:
+                raise IsADirectoryError(f"{self.image_name} is not a regular file")
+
+    def _empty(self):
+        return [
+            Sector(i // Flop.SPT, (i % Flop.SPT) + 1)
+            for i in range(Flop.TRACKS * Flop.SPT)
+        ]
+
+    def _load(self):
+        size_actual = self.image_name.stat().st_size
+        size_wanted = Flop.TRACKS * Flop.SPT * Flop.SECT_LEN
+        if size_wanted != size_actual:
+            raise ImageSizeError(f"Image size {size_actual} is different than expected {size_wanted}")
+
+        with open(self.image_name, "rb") as f:
+            for s in self.image:
+                s.update(f.read(Flop.SECT_LEN))
+
+        with open(self.image_state, "r") as f:
+            while True:
+                l = f.readline().strip()
+                if not l:
+                    break
+                track, sector, status = l.split()
+                s = self.sector(int(track), int(sector))
+                if status == 'E':
+                    s.mark_invalid()
+                elif status == 'U':
+                    s.mark_unknown()
+
+    def _load_old(self, start_track):
+        assert self.image_name.stat().st_size == (Flop.TRACKS - start_track) * Flop.SPT * Flop.SECT_LEN
+        if self.image_state.exists():
+            raise FileExistsError(f"State file '{self.image_state}' for the image '{self.image_name}' already exists. Already converted?")
+
+        with open(self.image_name, "rb") as f:
+            for s in self.image:
+                data = f.read(Flop.SECT_LEN)
+                if data == Flop.SECT_LEN * b'?':
+                    s.mark_invalid()
+                else:
+                    s.update(data)
+
+    def sector(self, track, sector):
+        sector -= 1  # sectors are counted from 1
+        return self.image[track * Flop.SPT + sector]
+
+    def save(self):
+        with open(self.image_name, "wb") as f:
+            for s in self.image:
+                f.write(bytes(s))
+
+        with open(self.image_state, "w") as f:
+            for s in self.image:
+                if s.err:
+                    f.write(f"{s.track} {s.sector} E\n")
+                elif s.unknown:
+                    f.write(f"{s.track} {s.sector} U\n")
+
+    def debug_dump(self):
+        print(f"Image: {self.image_name}")
+        for s in self.image:
+            print(s)
+
+    def __iter__(self):
+        return iter(self.image)
+
+
+# ------------------------------------------------------------------------
+class C:
+    RESET = '\033[0m'
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    GREY = '\033[37m'
+    GRAY = GREY
+    MAGENTA = '\033[95m'
+
+
+# ------------------------------------------------------------------------
+def sector_status(sector, status):
+    print(f"\033[{10 + sector}G{status}", end='', flush=True)
+
+
+# ------------------------------------------------------------------------
+def dump_sector(flop, track, sector, retries):
+    seek_required = False
+    
+    for _ in range(1 + retries):
+        flop.seek_rd(Flop.DRIVE_1, Flop.SIDE_A, track, sector)
+        try:
+            data = flop.read_sector()
+        except FlopError:
+            sector_status(sector, f"{C.RED}e\b{C.RESET}")
+        else:
+            return data
+
+    raise FlopError("Error on track {track} sector {sector} after {retries} retries.")
+
+
+# ------------------------------------------------------------------------
+def interleave_seq(i):
+    return [
+        1 + ((x * i) % Flop.SPT)
+        for x in range(Flop.SPT)
+    ]
+
+
+# ------------------------------------------------------------------------
+def action_dump(flop, image, track_min, track_max, sector_min, sector_max, retry_count, interleave):
+    failed = 0
+    good = 0
+    sector_seq = interleave_seq(interleave)
+
+    print("                    Sector          ")
+    for track in range(0, Flop.TRACKS):
+        if track < track_min or track > track_max:
+            continue
+        
+        # print out full track status
+        print(f"Track {track:2}: ", end='', flush=True)
+        for sector in range(1, Flop.SPT + 1):
+            s = image.sector(track, sector)
+            if s.ok:
+                st = "o"
+            elif s.err:
+                st = "E"
+            else:
+                st = "•"
+            sector_status(sector, f"{C.GRAY}{st}{C.RESET}")
+        
+        # read sectors
+        for sector in sector_seq:
+            if sector < sector_min or sector > sector_max:
+                continue
+            if image.sector(track, sector).ok:
+                continue
+
+            try:
+                sector_status(sector, f"{C.YELLOW}?\b{C.RESET}")
+                data = dump_sector(flop, track, sector, retry_count)
+            except FlopError:
+                sector_status(sector, f"{C.RED}E{C.RESET}")
+                image.sector(track, sector).mark_invalid()
+                failed += 1
+            else:
+                sector_status(sector, f"{C.GREEN}o{C.RESET}")
+                image.sector(track, sector).update(data)
+                good += 1
+        print()
+
+    return good, failed
+
+
+# ------------------------------------------------------------------------
+def ensure_no_overwrite(flop, image):
+    valid_sectors = [s for s in i if s.ok]
+    if not valid_sectors:
+        # if image is empty - no harm to be done
+        return
+
+    sample_sectors = random.choices([s for s in valid_sectors if s.track < Flop.TRACKS//3], k=3)
+    sector_ids = [f"{s.track}/{s.sector}" for s in sample_sectors]
+    print(f"Checking if media matches existing image by reading {len(sample_sectors)} random sectors: {sector_ids}")
+    flop.reset()
+    for s in sample_sectors:
+        flop.seek_rd(Flop.DRIVE_1, Flop.SIDE_A, s.track, s.sector)
+        data = flop.read_sector()
+        if data != s.data:
+            print(data)
+            print(s.data)
+            raise DataPresent(f"Track {s.track}/{s.sector} contains different data.")
+
+
+# ------------------------------------------------------------------------
+def parse_range(txt, min, max):
+    r = re.match("^([0-9]+)-([0-9]+)$", txt)
+    if not r:
+        raise ValueError("Invalid range")
+    a, b = int(r[1]), int(r[2])
+    if a <= b and min <= a <= max and min <= b <= max:
+        return (a, b)
+    else:
+        raise ValueError("Invalid range")
+
+
+# ------------------------------------------------------------------------
+# ------------------------------------------------------------------------
+# ------------------------------------------------------------------------
+
+default_port = "/dev/ttyUSB0"
+default_speed = 9600
+default_retries = 0
+default_track_min = 1
+default_track_max = 73
+default_interleave = 9
+
+parser = argparse.ArgumentParser(description='MERA-400 SP45DE 8-inch floppy disk dumper')
+parser.add_argument('image', nargs=1, help='disk image name')
+parser.add_argument('-p', '--port', help=f'serial port to use (default: {default_port})', default=default_port)
+parser.add_argument('-b', '--baud', help=f'serial port speed (default: {default_speed})', type=int, default=default_speed)
+parser.add_argument('-I', '--import', dest='old_image', help='import old image format', default=False, action='store_const', const=True)
+parser.add_argument('-r', '--retry-count', help=f'set retry count (default: {default_retries})', type=int, default=default_retries)
+parser.add_argument('-t', '--track-range', help=f'work on given track range only (default: {default_track_min}-{default_track_max})', default=f"{default_track_min}-{default_track_max}")
+parser.add_argument('-s', '--sector-range', help=f'work on given sector range only (default: 1-{Flop.SPT})', default=f"1-{Flop.SPT}")
+parser.add_argument('-i', '--interleave', help=f'sector interleave (default: {default_interleave})', type=int, default=default_interleave)
+parser.add_argument('--debug', help='enable debug', default=False, action='store_const', const=True)
+parser.add_argument('--dry-run', help='dry run, no data is saved to image file', default=False, action='store_const', const=True)
+args = parser.parse_args()
+
+# validate arguments
+try:
+    track_min, track_max = parse_range(args.track_range, 0, Flop.TRACKS-1)
+    sector_min, sector_max = parse_range(args.sector_range, 1, Flop.SPT)
+except ValueError:
+    print("Invalid range for track or sector range.")
+    print("Valid format: <min>-<max> (min <= max)")
+    print(f"Valid track numbers: 0..{Flop.TRACKS-1}")
+    print(f"Valid track numbers: 1..{Flop.SPT}")
+    sys.exit(6)
+
+if len(set(interleave_seq(args.interleave))) != Flop.SPT:
+    print(f"Interleave {args.interleave} is incorrect")
+    sys.exit(13)
+
+# create/open/import image
+try:
+    i = FlopImage(args.image[0], old_format=args.old_image)
+except FileExistsError as e:
+    print(e)
+    sys.exit(1)
+except ImageSizeError as e:
+    print(e)
+    sys.exit(2)
+
+f = Flop(args.port, args.baud, cancel_echo=True, debug=args.debug)
+f.reset()
+
+# make sure user doesn't update an image with contents of another floppy
+# (swapped disk, but same command used with "up arrow + enter" case)
+try:
+    ensure_no_overwrite(f, i)
+except DataPresent as e:
+    print(e)
+    print("Are you trying to update an image with data from another floppy?")
+    f.reset()
+    sys.exit(10)
+except Exception as e:
+    print("Could not check for media change, aborting")
+    print(e)
+    f.reset()
+    sys.exit(11)
+
+print(f"Dumping floppy data to image: '{i.image_name}'")
+print(f"Tracks: {args.track_range}, sectors: {args.sector_range}, retries: {args.retry_count}")
+print()
+
+try:
+    good, failed = action_dump(f, i, track_min, track_max, sector_min, sector_max, args.retry_count, args.interleave)
+    print()
+    print(f"Failed reads: {failed}, successfull reads: {good}")
+    total_bad = [s for s in i if s.err]
+    total_1_73_bad = [s for s in total_bad if s.track >= 1 and s.track <= 73]
+    print(f"Total bad sectors: {len(total_bad)} (of wchich {len(total_1_73_bad)} are in 1-73 track range)")
+except Exception as e:
+    raise
+finally:
+    if not args.dry_run:
+        i.save()
+    f.reset()
