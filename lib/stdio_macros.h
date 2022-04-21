@@ -20,9 +20,8 @@
 	lw	r3, w		\
 	lj	memset
 
-#define kz_init(CH, uzdat_list)	\
+#define kz_init(CH)	\
 	lw	r1, CH		\
-	lw	r2, uzdat_list	\
 	lj	kz_init
 
 #define kz_reset(dev)		\
