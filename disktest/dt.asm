@@ -28,8 +28,6 @@ stack:	.res	11*4, 0x0ded
 ; ------------------------------------------------------------------------
 
 FLOP:	.word	0
-uzdat_list:
-	.word	-1
 
 ; ------------------------------------------------------------------------
 ; r5 - disk address
@@ -97,7 +95,7 @@ start:
 	lw	r7, [FLOP]
 	srz	r7
 	nr	r7, 0b1111
-	kz_init(r7, uzdat_list)
+	kz_init(r7)
 	im	imask
 
 	lw	r7, testv
