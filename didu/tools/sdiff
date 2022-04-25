@@ -24,7 +24,7 @@ def disk_hash(fname):
         s.append(m.hexdigest())
     f.close()
     return s
-        
+
 # ------------------------------------------------------------------------
 def hash_all_images(dir):
     dic = {}
@@ -73,8 +73,8 @@ def sdiff(d1, d2):
             track += 1
             spt = 1
     print("")
-#    print("Legend: . - same, / - different, 1 or 2 - error on disk 1 or 2, X - error on both disks")
-    print("Similarity: %.2f%%, errors (1/2): %i/%i, common errors: %i" % ((same*100)/(73*26), e1, e2, ecommon))
+    print("Legend: . - same, / - different, 1 or 2 - error on disk 1 or 2, X - error on both disks")
+    print("Similarity: %.2f%%, errors (1/2): %i/%i, common errors: %i" % ((same*100)/(77*26), e1, e2, ecommon))
     print("")
 
 # ------------------------------------------------------------------------
@@ -165,7 +165,7 @@ args = parser.parse_args()
 
 # get the hash for an unreadable sector marker
 merr = hashlib.sha256()
-merr.update(bytes('?'*128, encoding="ascii"))
+merr.update(128 * b'?')
 err_hash = merr.hexdigest()
 
 # hash all images recursively
@@ -197,7 +197,7 @@ elif args.visualize:
 else:
     if len(args.image) == 1:
         args.image.append(args.image[0])
-    
+
     sdiff(d[args.image[0]], d[args.image[1]])
 
 

@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+
+from multiprocessing.sharedctypes import Value
+from pathlib import Path
+import sys
+import serial
+import struct
+from crc_algorithms import Crc
+import itertools
+import argparse
+import time
+import random
+import re
+
+from sector import Sector
+from flop import (Flop, FlopError, CommError)
+from flopimage import (FlopImage, ImageSizeError, DataPresent)
+
+# ------------------------------------------------------------------------
+class C:
+    RESET = '\033[0m'
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    GREY = '\033[37m'
+    GRAY = GREY
+    MAGENTA = '\033[95m'
+
+
+# ------------------------------------------------------------------------
+class DiskDumper:
+
+    # --------------------------------------------------------------------
+    def __init__(self, flop, image, drive, side):
+        self.flop = flop
+        self.image = image
+        self.drive = drive
+        self.side = side
+
+    # --------------------------------------------------------------------
+    def sector_status(self, sector, status):
+        print(f"\033[{10 + sector}G{status}", end='', flush=True)
+
+    # --------------------------------------------------------------------
+    def _dump_sector(self, track, sector, retries):
+        seek_required = False
+
+        exc = None
+
+        for _ in range(1 + retries):
+            self.flop.seek_rd(self.drive, self.side, track, sector)
+            try:
+                data = self.flop.read_sector()
+            except FlopError as e:
+                exc = e
+                self.sector_status(sector, f"{C.RED}{e.err.lower()}\b{C.RESET}")
+                if e.interrupt == Flop.INT_BAD_SECTOR or e.interrupt == Flop.INT_HW:
+                    break
+            except CommError as e:
+                exc = e
+                self.sector_status(sector, f"{C.RED}=\b{C.RESET}")
+            else:
+                return data
+
+        raise exc
+
+    # --------------------------------------------------------------------
+    @classmethod
+    def interleave_seq(self, i):
+        return [
+            1 + ((x * i) % Flop.SPT)
+            for x in range(Flop.SPT)
+        ]
+
+    # --------------------------------------------------------------------
+    def print_track(self, track):
+            state_map = {Sector.BAD: 'B', Sector.ERR: 'E', Sector.OK: 'o', Sector.UNKNOWN: '•'}
+            sectors = ''.join([state_map[s.status] for s in self.image if s.track == track])
+            print(f"Track {track:2}: {C.GRAY}{sectors}{C.RESET}", end='', flush=True)
+
+    # --------------------------------------------------------------------
+    def verify(self, track_min, track_max, sector_min, sector_max, retry_count, interleave):
+        failed = 0
+        good = 0
+        mismatch = 0
+        self.flop.reset()
+
+        print("                    Sector          ")
+        for track in range(0, Flop.TRACKS):
+            if track < track_min or track > track_max:
+                continue
+
+            self.print_track(track)
+
+            # verify sectors
+            for sector in self.interleave_seq(interleave):
+                s = self.image.sector(track, sector)
+                if sector < sector_min or sector > sector_max or not s.ok:
+                    continue
+
+                try:
+                    self.sector_status(sector, f"{C.YELLOW}?\b{C.RESET}")
+                    data = self._dump_sector(track, sector, retry_count)
+                except FlopError as e:
+                    self.sector_status(sector, f"{C.RED}{e.err}\b{C.RESET}")
+                    failed += 1
+                except CommError as e:
+                    self.sector_status(sector, f"{C.RED}=\b{C.RESET}")
+                    failed += 1
+                else:
+                    if s.data != data:
+                        self.sector_status(sector, f"{C.GREEN}X\b{C.RESET}")
+                        mismatch += 1
+                    else:
+                        self.sector_status(sector, f"{C.GREEN}o\b{C.RESET}")
+                        good += 1
+            print()
+
+        return good, failed, mismatch
+
+    # --------------------------------------------------------------------
+    def dump(self, track_min, track_max, sector_min, sector_max, retry_count, interleave):
+        failed = 0
+        good = 0
+        self.flop.reset()
+
+        print("                    Sector          ")
+        for track in range(0, Flop.TRACKS):
+            if track < track_min or track > track_max:
+                continue
+
+            self.print_track(track)
+
+            # read sectors
+            for sector in self.interleave_seq(interleave):
+                s = self.image.sector(track, sector)
+
+                if sector < sector_min or sector > sector_max or s.ok or s.bad:
+                    continue
+
+                try:
+                    self.sector_status(sector, f"{C.YELLOW}?\b{C.RESET}")
+                    data = self._dump_sector(track, sector, retry_count)
+                except FlopError as e:
+                    self.sector_status(sector, f"{C.RED}{e.err}\b{C.RESET}")
+                    if e.err == 'B':
+                        s.set_status(Sector.BAD)
+                    else:
+                        s.set_status(Sector.ERR)
+                    failed += 1
+                except CommError as e:
+                    self.sector_status(sector, f"{C.RED}=\b{C.RESET}")
+                    s.set_status(Sector.ERR)
+                    failed += 1
+                else:
+                    self.sector_status(sector, f"{C.GREEN}o\b{C.RESET}")
+                    s.update(data)
+                    good += 1
+            print()
+
+        return good, failed
+
+    # --------------------------------------------------------------------
+    def ensure_no_overwrite(self, samples, skip_media_check=False):
+        if skip_media_check and Path(self.image.image_name).exists():
+            print("You are about to update existing image from an unknown media.")
+            name = input("Enter full image name to continue: ")
+            if name != self.image.image_name:
+                raise DataPresent("Wrong image name")
+            else:
+                return
+
+        valid_sectors = [s for s in i if s.ok]
+        if not valid_sectors:
+            return
+
+        valid_low_sectors = [
+            s for s in valid_sectors
+            if 0 < s.track < Flop.TRACKS//3
+        ]
+        sample_sectors = set(random.choices(valid_low_sectors, k=samples))
+        sector_ids = ' '.join([f"{s.track}/{s.sector}" for s in sample_sectors])
+
+        print(f"Checking if media matches existing image")
+        print(f"Reading {len(sample_sectors)} random sectors ({sector_ids}): ", end='', flush=True)
+
+        self.flop.reset()
+
+        for s in sample_sectors:
+            self.flop.seek_rd(self.drive, self.side, s.track, s.sector)
+            data = self.flop.read_sector()
+            if data != s.data:
+                print('x')
+                raise DataPresent(f"Track {s.track}/{s.sector} contains different data.")
+            else:
+                print('.', end='', flush=True)
+        print()
+
+
+# --------------------------------------------------------------------
+def parse_range(txt, min, max):
+    # allowed: "10-20", "10"
+    r = re.match("^([0-9]+)(-([0-9]+))?$", txt)
+    if not r:
+        raise ValueError("Invalid range")
+    a = int(r[1])
+    b = int(r[3]) if r[3] else a
+    if a <= b and min <= a <= max and min <= b <= max:
+        return (a, b)
+    else:
+        raise ValueError("Invalid range")
+
+
+# ------------------------------------------------------------------------
+# ------------------------------------------------------------------------
+# ------------------------------------------------------------------------
+
+default_port = "/dev/ttyUSB0"
+default_speed = 9600
+default_retries = 0
+default_track_min = 0
+default_track_max = 76
+default_interleave = 9
+default_drive = 1
+default_side = 'a'
+
+parser = argparse.ArgumentParser(description='MERA-400 SP45DE 8-inch floppy disk dumper')
+parser.add_argument('image', nargs=1, help='disk image name')
+parser.add_argument('-p', '--port', help=f'serial port to use (default: {default_port})', default=default_port)
+parser.add_argument('-b', '--baud', help=f'serial port speed (default: {default_speed})', type=int, default=default_speed)
+parser.add_argument('-I', '--import', dest='old_image', help='import old image format', default=False, action='store_const', const=True)
+parser.add_argument('-V', '--verify', help='verify image contents against media', default=False, action='store_const', const=True)
+parser.add_argument('-r', '--retry-count', help=f'set retry count (default: {default_retries})', type=int, default=default_retries)
+parser.add_argument('-t', '--track-range', help=f'work on given track range only (default: {default_track_min}-{default_track_max})', default=f"{default_track_min}-{default_track_max}")
+parser.add_argument('-s', '--sector-range', help=f'work on given sector range only (default: 1-{Flop.SPT})', default=f"1-{Flop.SPT}")
+parser.add_argument('-i', '--interleave', help=f'sector interleave (default: {default_interleave})', type=int, default=default_interleave)
+parser.add_argument('-d', '--drive', help=f'drive to use (default: {default_drive})', choices=[1, 2, 3, 4], type=int, default=default_drive)
+parser.add_argument('-S', '--side', help=f'disk side (default: {default_side})', choices=['a', 'b'], default=default_side)
+parser.add_argument('--skip-media-check', help='Skip media check when working on an existing image', default=False, action='store_const', const=True)
+parser.add_argument('--debug', help='enable debug', default=False, action='store_const', const=True)
+parser.add_argument('--dry-run', help='dry run, no data is saved to image file', default=False, action='store_const', const=True)
+args = parser.parse_args()
+
+# validate arguments
+
+try:
+    track_min, track_max = parse_range(args.track_range, 0, Flop.TRACKS-1)
+    sector_min, sector_max = parse_range(args.sector_range, 1, Flop.SPT)
+except ValueError:
+    print("Invalid track or sector range. Valid formats:")
+    print("   <min>-<max> : sector/track range (min <= max)")
+    print("   <position>  : specific sector/track")
+    print(f"Valid track numbers: 0..{Flop.TRACKS-1}")
+    print(f"Valid track numbers: 1..{Flop.SPT}")
+    sys.exit(6)
+
+if len(set(DiskDumper.interleave_seq(args.interleave))) != Flop.SPT:
+    print(f"Interleave {args.interleave} is incorrect")
+    sys.exit(13)
+
+# create/open/import image
+
+try:
+    i = FlopImage(args.image[0], Flop.TRACKS, Flop.SPT, Flop.SECT_LEN, old_format=args.old_image)
+except FileExistsError as e:
+    print(e)
+    sys.exit(1)
+except ImageSizeError as e:
+    print(e)
+    sys.exit(2)
+
+f = Flop(args.port, args.baud, cancel_echo=True, debug=args.debug)
+
+side = 0 if args.side.lower() == 'a' else 1
+dd = DiskDumper(f, i, Flop.DRIVES[args.drive-1], side)
+
+if args.verify:
+    print(f"Verifying floppy image: '{i.image_name}' against the disk")
+    print(f"Tracks: {args.track_range}, sectors: {args.sector_range}, retries: {args.retry_count}")
+    print()
+
+    try:
+        good, failed, mismatch = dd.verify(track_min, track_max, sector_min, sector_max, args.retry_count, args.interleave)
+        print()
+        print(f"Sectors: mismatched: {mismatch}, failed: {failed}, good: {good}")
+    except Exception as e:
+        raise
+    finally:
+        f.reset()
+
+else:
+    try:
+        dd.ensure_no_overwrite(5, skip_media_check=args.skip_media_check)
+    except DataPresent as e:
+        print(e)
+        print("Are you trying to update an image with data from another floppy?")
+        f.reset()
+        sys.exit(10)
+    except Exception as e:
+        print("Could not check for media change, aborting")
+        print(e)
+        f.reset()
+        sys.exit(11)
+
+
+    print(f"Dumping floppy {args.drive} side {args.side.upper()} data to image: '{i.image_name}'")
+    print(f"Tracks: {args.track_range}, sectors: {args.sector_range}, retries: {args.retry_count}")
+    print()
+
+    try:
+        good, failed = dd.dump(track_min, track_max, sector_min, sector_max, args.retry_count, args.interleave)
+        print()
+        print(f"Failed reads: {failed}, successfull reads: {good}")
+        total_bad = [s for s in i if not s.ok]
+        total_1_73_bad = [s for s in total_bad if s.track >= 1 and s.track <= 73]
+        print(f"Total bad sectors: {len(total_bad)} (of wchich {len(total_1_73_bad)} are in 1-73 track range)")
+    except Exception as e:
+        raise
+    finally:
+        if not args.dry_run:
+            i.save()
+        f.reset()

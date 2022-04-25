@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+
+import sys
+from flop import Flop
+
+f = Flop("/dev/ttyUSB0", 9600, cancel_echo=True)
+f.seek_rd(Flop.DRIVES[0], Flop.SIDES[0], int(sys.argv[1]), 1)
+f.read_sector()
+f.reset()
