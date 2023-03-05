@@ -194,10 +194,10 @@ test_mapping:
 
 	tw	r3, r4
 	cw	r3, MAGIC1 + r2
-	jn	.fail
+	jn	.fail1
 	tw	r3, r4+1
 	cw	r3, MAGIC2 + r2
-	jn	.fail
+	jn	.fail2
 
 	; "deconfigure" page
 	rw	r1, .t1
@@ -234,8 +234,10 @@ test_mapping:
 .done:
 	mb	imask
 	uj	[test_mapping]
-.fail:
+.fail1:
 	hlt	053
+.fail2:
+	hlt	054
 .nb:	.res	1
 .t1:	.res	1
 .t3:	.res	1
