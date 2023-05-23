@@ -11,51 +11,12 @@
 	.const	MAGIC1 0b1010101000000000
 	.const	MAGIC2 0b0101010100000000
 
-patterns:
-	; [pattern, number of positions (with subsequent shifts) to test]
-	.word	0b0000000000000000, 1
-	.word	0b1111111111111111, 1
-	.word	0b1000000000000000, 16
-	.word	0b0111111111111111, 16
-	.word	0b1010101010101010, 2
-patterns_end:
-
 imask:	.word	IMASK_ALL_MEM | 0\SR_NB
 
 ; ------------------------------------------------------------------------
 mem_int:
 	hlt	044
 	ujs	mem_int
-
-; ------------------------------------------------------------------------
-; r2 - pattern
-test:
-	.res	1
-	lw	r4, mem_start
-.wrloop:
-	rw	r2, r4
-	irb	r4, .wrloop
-
-	lw	r4, mem_start
-.rdloop:
-	cw	r2, [r4]
-	jes	.cont
-	hlt	076
-.cont:	irb	r4, .rdloop
-	je	[test]
-
-; ------------------------------------------------------------------------
-; r7 - test vector
-test_pat:
-	.res	1
-	lw	r2, [r7]
-	lw	r3, [r7+1]
-.loop:
-	lj	test
-	shc	r2, 1
-	awt	r3, -1
-	jz	[test_pat]
-	ujs	.loop
 
 ; ------------------------------------------------------------------------
 test_addr:
@@ -243,6 +204,111 @@ test_mapping:
 .t3:	.res	1
 
 ; ------------------------------------------------------------------------
+march_up_w0:
+	.res	1
+	lw	r1, mem_start
+
+.loop:	rz	r1
+	irb	r1, .loop
+
+	uj	[march_up_w0]
+
+; ------------------------------------------------------------------------
+march_up_rw:
+	.res	1
+	lw	r1, mem_start
+
+.loop:	cw	r2, [r1]
+	jn	fail
+	rw	r3, r1
+	irb	r1, .loop
+
+	uj	[march_up_rw]
+
+; ------------------------------------------------------------------------
+march_up_r0_w1:
+	.res	1
+	lwt	r2, 0
+	lwt	r3, -1
+	lj	march_up_rw
+	uj	[march_up_r0_w1]
+
+; ------------------------------------------------------------------------
+march_up_r1_w0:
+	.res	1
+	lwt	r2, -1
+	lwt	r3, 0
+	lj	march_up_rw
+	uj	[march_up_r1_w0]
+
+; ------------------------------------------------------------------------
+march_dn_rw:
+	.res	1
+	lw	r1, 0xffff
+	lw	r4, mem_start-1
+
+.loop:	cw	r2, [r1]
+	jn	fail
+	rw	r3, r1
+	awt	r1, -1
+	cw	r1, r4
+	je	[march_dn_rw]
+	ujs	.loop
+
+; ------------------------------------------------------------------------
+march_dn_r0_w1:
+	.res	1
+	lwt	r2, 0
+	lwt	r3, -1
+	lj	march_dn_rw
+	uj	[march_dn_r0_w1]
+
+; ------------------------------------------------------------------------
+march_dn_r1_w0:
+	.res	1
+	lwt	r2, -1
+	lwt	r3, 0
+	lj	march_dn_rw
+	uj	[march_dn_r1_w0]
+
+; ------------------------------------------------------------------------
+march_up_r0:
+	.res	1
+	lw	r1, mem_start
+	lwt	r2, 0
+
+.loop:	cw	r2, [r1]
+	jn	fail
+	irb	r1, .loop
+	uj	[march_up_r0]
+
+; ------------------------------------------------------------------------
+march_seq:
+	.word	march_up_w0
+	.word	march_up_r0_w1
+	.word	march_up_r1_w0
+	.word	march_dn_r0_w1
+	.word	march_dn_r1_w0
+	.word	march_up_r0
+march_seq_end:
+
+; ------------------------------------------------------------------------
+; uses: r7
+test_march:
+	.res	1
+	lw	r7, march_seq
+.loop:
+	lj	[r7]
+	awt	r7, 1
+	cw	r7, march_seq_end
+	jn	.loop
+	uj	[test_march]
+
+; ------------------------------------------------------------------------
+fail:
+	hlt	046
+
+; ------------------------------------------------------------------------
 start:
 	; prepare interrupt vectors
 	lw	r1, mem_start
@@ -264,15 +330,8 @@ start:
 	; run addressing test
 	lj	test_addr
 
-	; run all pattern tests
-	lwt	r7, patterns
-nx_pat:
-	lj	test_pat
-done:
-	awt	r7, 2
-	cwt	r7, patterns_end
-	blc	?E
-	lwt	r7, patterns
-	uj	nx_pat
+.loop:
+	lj	test_march
+ujs	.loop
 
 mem_start:
