@@ -244,16 +244,14 @@ march_up_r1_w0:
 ; ------------------------------------------------------------------------
 march_dn_rw:
 	.res	1
-	lw	r1, 0xffff
+	lw	r1, 0xffff - (mem_start-1)
 	lw	r4, mem_start-1
 
-.loop:	cw	r2, [r1]
+.loop:	cw	r2, [r1+r4]
 	jn	fail
-	rw	r3, r1
-	awt	r1, -1
-	cw	r1, r4
+	rw	r3, r1+r4
+	drb	r1, .loop
 	je	[march_dn_rw]
-	ujs	.loop
 
 ; ------------------------------------------------------------------------
 march_dn_r0_w1:
