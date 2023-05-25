@@ -251,7 +251,7 @@ march_dn_rw:
 	jn	fail
 	rw	r3, r1+r4
 	drb	r1, .loop
-	je	[march_dn_rw]
+	uj	[march_dn_rw]
 
 ; ------------------------------------------------------------------------
 march_dn_r0_w1:
