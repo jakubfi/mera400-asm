@@ -27,9 +27,9 @@ uzdat_list:
 	.word	PC, -1
 
 ; ------------------------------------------------------------------------
-	.const	LOOPS 25
+	.const	LOOPS 20
 	.const	TIMER_CYCLE_MS 10
-	.const	TIMER_PROC_TIME_US 23
+	.const	TIMER_PROC_TIME_US 23 ; measured correction for timer interrupt serving
 test_time_ns:
 	.dword	(LOOPS * TIMER_CYCLE_MS * 1000000) - (LOOPS * TIMER_PROC_TIME_US * 1000)
 measured_time_ns:
@@ -54,7 +54,7 @@ timer_proc:
 ;  r4 - loop type:
 	.const	LOOP_NULL 0	; null-loop (calibration loop)
 	.const	LOOP_1 1	; 1-word test loop
-	.const	LOOP_2 2	; 2-words test loop
+	.const	LOOP_2 2	; 2-words test loop (anything >1)
 ;  r5 - word 1
 ;  r6 - word 2
 ; RETURN VALUE (exit is through timer interrupt, but it's a return value anyway):
@@ -63,11 +63,11 @@ timer_proc:
 measure:
 	.res	1
 
-	cwt	r4, 0		; if LOOP_NULL ...
+	cwt	r4, LOOP_NULL	; if LOOP_NULL ...
 	jes	.instr_prepared	; ... done, no instruction inserted, else:
 	rw	r5, .i11	; at least one instruction needs to be inserted
 	rw	r5, .i21	; do it for both loops
-	cwt	r4, 1		; if LOOP_1 ...
+	cwt	r4, LOOP_1	; if LOOP_1 ...
 	jes	.instr_prepared	; ... done, one instruction inserted, else:
 	rw	r6, .i22	; LOOP_2 - insert second instruction
 .instr_prepared:
@@ -103,36 +103,36 @@ measure:
 	.word	.loop_null, .loop_1, .loop_2
 
 ; ------------------------------------------------------------------------
-; ---- MAIN --------------------------------------------------------------
-; ------------------------------------------------------------------------
-start:
-	; initialize KZ
-	lw	r1, CH
-	lw	r2, uzdat_list
-	lj	kz_init
+; ARGUMETS:
+;  r7 - test address
+run_test:
+	.res	1
+
+	rw	r7, .taddr
 	im	imask
 
-	lw	r1, '\r\n'
+	lw	r1, r7
 	lw	r2, PC
-	lj	put2c
+	lj	puts
 
-	im	timer_enable
-	hlt			; make sure first two timer interrupts pass by
-	hlt			; those are prone to have a shorter cycle
-	hlt			; +1 just in case
-	im	izero
-
-main_loop:
+	lw	r1, '\t'
+	lw	r2, PC
+	lj	putc
 
 	; calibrate
-	lwt	r4, LOOP_NULL
+	lw	r7, [.taddr]
+	lw	r4, [r7+3]
+	lw	r5, [r7+5]
+	lw	r6, [r7+6]
 	lj	measure
 	im	izero
 	rw	r7, cal_loops
 
 	; measure
-	lwt	r4, LOOP_1
-	lw	r5, r0 lw r1, r1
+	lw	r7, [.taddr]
+	lw	r4, [r7+4]
+	lw	r5, [r7+7]
+	lw	r6, [r7+8]
 	lj	measure
 	im	izero
 	rw	r7, test_loops
@@ -160,23 +160,27 @@ main_loop:
 	lw	r2, PC
 	lj	putc
 
-	lw	r1, [cal_loops]
-	lw	r2, str_buf
-	lj	unsigned2asc
-	lw	r1, str_buf
+	lw	r1, 'ns'
 	lw	r2, PC
-	lj	puts
+	lj	put2c
 
-	lw	r1, ' '
-	lw	r2, PC
-	lj	putc
-
-	lw	r1, [test_loops]
-	lw	r2, str_buf
-	lj	unsigned2asc
-	lw	r1, str_buf
-	lw	r2, PC
-	lj	puts
+;	lw	r1, [cal_loops]
+;	lw	r2, str_buf
+;	lj	unsigned2asc
+;	lw	r1, str_buf
+;	lw	r2, PC
+;	lj	puts
+;
+;	lw	r1, ' '
+;	lw	r2, PC
+;	lj	putc
+;
+;	lw	r1, [test_loops]
+;	lw	r2, str_buf
+;	lj	unsigned2asc
+;	lw	r1, str_buf
+;	lw	r2, PC
+;	lj	puts
 
 	lw	r1, '\r\n'
 	lw	r2, PC
@@ -184,14 +188,84 @@ main_loop:
 
 	im	izero
 
-	uj	main_loop
+	uj	[run_test]
+.taddr:	.res	1
 
+; ------------------------------------------------------------------------
+; ---- MAIN --------------------------------------------------------------
+; ------------------------------------------------------------------------
+start:
+	; initialize KZ
+	lw	r1, CH
+	lw	r2, uzdat_list
+	lj	kz_init
+	im	imask
+
+	lw	r1, '\r\n'
+	lw	r2, PC
+	lj	put2c
+
+	im	timer_enable
+	hlt			; make sure first two timer interrupts pass by
+	hlt			; those are prone to have a shorter cycle
+	hlt			; +1 just in case
+	im	izero
+
+	lw	r1, test_table
+	rw	r1, test_ptr
+
+next_test:
+	lw	r7, [test_ptr]
+	lj	run_test
+
+	lw	r7, [test_ptr]
+	awt	r7, 9
+	cw	r7, test_end
+	jes	fin
+	rw	r7, test_ptr
+	uj	next_test
+
+fin:
+	hlt
+	ujs	fin
+
+test_ptr:
+	.word	test_table
 test_table:
-	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		lw r7, r7	.word 0
-	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		shc r7, 1	.word 0
-	.word	LOOP_1,		LOOP_1	shc r7, 1	.word 0		shc r7, 2	.word 0
-	.word	LOOP_1,		LOOP_1	lw r7, r7	.word 0		lw r7, r7+r7	.word 0
-	.word	LOOP_2,		LOOP_2	lw r7, r0	.word 0		lw r7, [r0]	.word 0
-	.word	0xffff
+	.asciiz "LW   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		lw r1, r1	.word 0
+	.asciiz "AW   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		aw r1, r1	.word 0
+;	.asciiz "AC   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		ac r1, r1	.word 0
+;	.asciiz "SW   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		sw r1, r1	.word 0
+;	.asciiz "CW   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		cw r1, r1	.word 0
+;	.asciiz "OR   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		or r1, r1	.word 0
+;	.asciiz "XR   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		xr r1, r1	.word 0
+;	.asciiz "AWT+ "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		awt r1, 1	.word 0
+	.asciiz "AWT- "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		awt r1, -1	.word 0
+	.asciiz "SHC1 "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		shc r1, 1	.word 0
+	.asciiz "SHC0 "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		shc r1, 0	.word 0
+;	.asciiz "CWT  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		cwt r1, 1	.word 0
+;	.asciiz "LWT  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		lwt r1, 1	.word 0
+;	.asciiz "UJS0 "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		ujs 0		.word 0
+	.asciiz "SXU  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		sxu r1		.word 0
+	.asciiz "SLZ  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		slz r1		.word 0
+;	.asciiz "ZLB  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		zlb r1		.word 0
+;	.asciiz "NGA  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		nga r1		.word 0
+;	.asciiz "NGL  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		ngl r1		.word 0
+;	.asciiz "RPC  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		rpc r1		.word 0
+;	.asciiz "LPC  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		lpc r1		.word 0
+	.asciiz "RKY  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		rky r1		.word 0
+	.asciiz "LD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	ld r1
+	.asciiz "LF   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	lf r1
+;	.asciiz "MD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	md r1
+	.asciiz "AD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	ad r1
+;	.asciiz "SD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	sd r1
+;	.asciiz "MW   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	mw r1
+;	.asciiz "DW   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	dw r1
+
+	.asciiz "P4Bm "	.word	LOOP_1,		LOOP_1	lw r1, r1	.word 0		lw r1, r1+r1	.word 0
+	.asciiz "P4ka "	.word	LOOP_1,		LOOP_1	awt r1, 1	.word 0		awt r1, -1	.word 0
+	.asciiz "P5   "	.word	LOOP_2,		LOOP_2	lw r1, r0	.word 0		lw r1, [r0]	.word 0
+	.asciiz "WX   "	.word	LOOP_1,		LOOP_1	shc r1, 1	.word 0		shc r1, 2	.word 0
+test_end:
 
 stack:
