@@ -27,27 +27,23 @@ uzdat_list:
 	.word	PC, -1
 
 ; ------------------------------------------------------------------------
-	.const	LOOPS 20
+	.const	LOOPS 10
 	.const	TIMER_CYCLE_MS 10
 	.const	TIMER_PROC_TIME_US 23 ; measured correction for timer interrupt serving
+	; TODO: re measure timer_proc with 'ib' now!
 test_time_ns:
 	.dword	(LOOPS * TIMER_CYCLE_MS * 1000000) - (LOOPS * TIMER_PROC_TIME_US * 1000)
-measured_time_ns:
-	.res	1
-cal_loops:
-	.res	1
-test_loops:
-	.res	1
-str_buf:
-	.res	16
 
 ; ------------------------------------------------------------------------
 timer_proc:
-	irb	r5, .kim	; if (r5 < 0) then next test loop
-	lw	r5, [measure]	; otherwise: load the exit adddres from last "measure" call
+	ib	loops		; loops++, if loops < 0 ...
+	lip			; ...then next test loop
+	lw	r5, [measure]	; if loops==0, then load the exit adddres from last "measure" call
 	md	[STACKP]	; and replace pre-interrupt IC stored on stack with it, so the test loop
 	rw	r5, -SP_IC	; breaks, and control is transferred back to after the original "lj measure"
 .kim:	lip
+
+loops:	.res	1
 
 ; ------------------------------------------------------------------------
 ; ARGUMENTS:
@@ -63,6 +59,8 @@ timer_proc:
 measure:
 	.res	1
 
+	rz	.counter
+
 	cwt	r4, LOOP_NULL	; if LOOP_NULL ...
 	jes	.instr_prepared	; ... done, no instruction inserted, else:
 	rw	r5, .i11	; at least one instruction needs to be inserted
@@ -74,6 +72,7 @@ measure:
 	lw	r4, [.jmptab+r4]
 
 	lw	r5, -(LOOPS+1)	; timer interrupt counter (+1 for the trigger)
+	rw	r5, loops
 	lwt	r6, 0		; loop counter, high
 	lwt	r7, 0		; loop counter, low
 
@@ -83,24 +82,23 @@ measure:
 	uj	r4		; jump to selected test loop
 
 .loop_null:
-	awt	r7, 1
-	ac	r6, 0
-	ujs	.loop_null
+	ib	.counter
+	uj	.loop_null
 .loop_1:
+	ib	.counter
 .i11:	nop
-	awt	r7, 1
-	ac	r6, 0
-	ujs	.loop_1
+	uj	.loop_1
 .loop_2:
+	ib	.counter
 .i21:	nop
 .i22:	nop
-	awt	r7, 1
-	ac	r6, 0
-	ujs	.loop_2
+	uj	.loop_2
 
 	uj	[measure]	; never reached, [measure] is popped in timer handler
 .jmptab:
 	.word	.loop_null, .loop_1, .loop_2
+.counter:
+	.res	1
 
 ; ------------------------------------------------------------------------
 ; ARGUMETS:
@@ -126,7 +124,8 @@ run_test:
 	lw	r6, [r7+6]
 	lj	measure
 	im	izero
-	rw	r7, cal_loops
+	lw	r7, [measure.counter]
+	rw	r7, .cal_loops
 
 	; measure
 	lw	r7, [.taddr]
@@ -135,24 +134,25 @@ run_test:
 	lw	r6, [r7+8]
 	lj	measure
 	im	izero
-	rw	r7, test_loops
+	lw	r7, [measure.counter]
+	rw	r7, .test_loops
 
 	; calculate result
 	ld	test_time_ns
-	dw	test_loops
+	dw	.test_loops
 	lw	r3, r2
 	ld	test_time_ns
-	dw	cal_loops
+	dw	.cal_loops
 	sw	r3, r2	; result
-	rw	r3, measured_time_ns
+	rw	r3, .measured_time_ns
 
 	im	imask
 
 	; print result
-	lw	r1, [measured_time_ns]
-	lw	r2, str_buf
+	lw	r1, [.measured_time_ns]
+	lw	r2, .str_buf
 	lj	unsigned2asc
-	lw	r1, str_buf
+	lw	r1, .str_buf
 	lw	r2, PC
 	lj	puts
 
@@ -164,23 +164,27 @@ run_test:
 	lw	r2, PC
 	lj	put2c
 
-;	lw	r1, [cal_loops]
-;	lw	r2, str_buf
-;	lj	unsigned2asc
-;	lw	r1, str_buf
-;	lw	r2, PC
-;	lj	puts
-;
-;	lw	r1, ' '
-;	lw	r2, PC
-;	lj	putc
-;
-;	lw	r1, [test_loops]
-;	lw	r2, str_buf
-;	lj	unsigned2asc
-;	lw	r1, str_buf
-;	lw	r2, PC
-;	lj	puts
+	lw	r1, '\t'
+	lw	r2, PC
+	lj	putc
+
+	lw	r1, [.cal_loops]
+	lw	r2, .str_buf
+	lj	unsigned2asc
+	lw	r1, .str_buf
+	lw	r2, PC
+	lj	puts
+
+	lw	r1, ' '
+	lw	r2, PC
+	lj	putc
+
+	lw	r1, [.test_loops]
+	lw	r2, .str_buf
+	lj	unsigned2asc
+	lw	r1, .str_buf
+	lw	r2, PC
+	lj	puts
 
 	lw	r1, '\r\n'
 	lw	r2, PC
@@ -190,6 +194,14 @@ run_test:
 
 	uj	[run_test]
 .taddr:	.res	1
+.cal_loops:
+	.res	1
+.test_loops:
+	.res	1
+.measured_time_ns:
+	.res	1
+.str_buf:
+	.res	16
 
 ; ------------------------------------------------------------------------
 ; ---- MAIN --------------------------------------------------------------
@@ -231,6 +243,11 @@ fin:
 
 test_ptr:
 	.word	test_table
+
+	.const	END -1
+	.asciiz "LW   "	.word END lw r1, r1 .word END
+	.asciiz "AW   "	.word END aw r1, r1 .word END
+
 test_table:
 	.asciiz "LW   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		lw r1, r1	.word 0
 	.asciiz "AW   "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		aw r1, r1	.word 0
@@ -256,16 +273,21 @@ test_table:
 	.asciiz "RKY  "	.word	LOOP_NULL,	LOOP_1	.word 0		.word 0		rky r1		.word 0
 	.asciiz "LD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	ld r1
 	.asciiz "LF   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	lf r1
-;	.asciiz "MD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	md r1
+;	.asciiz "LL   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	ll r1
+;	.asciiz "LA   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	la r1
+;	.asciiz "MD!!!"	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	md r1 ; TODO: ona się wykona!!!!!
 	.asciiz "AD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	ad r1
 ;	.asciiz "SD   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	sd r1
 ;	.asciiz "MW   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	mw r1
 ;	.asciiz "DW   "	.word	LOOP_1,		LOOP_2	lwt r1, 0	.word 0		lwt r1, 0	dw r1
 
-	.asciiz "P4Bm "	.word	LOOP_1,		LOOP_1	lw r1, r1	.word 0		lw r1, r1+r1	.word 0
-	.asciiz "P4ka "	.word	LOOP_1,		LOOP_1	awt r1, 1	.word 0		awt r1, -1	.word 0
+	.asciiz "P4/Bm"	.word	LOOP_1,		LOOP_1	lw r1, r1	.word 0		lw r1, r1+r1	.word 0
+	.asciiz "P4/KA"	.word	LOOP_1,		LOOP_1	awt r1, 1	.word 0		awt r1, -1	.word 0
 	.asciiz "P5   "	.word	LOOP_2,		LOOP_2	lw r1, r0	.word 0		lw r1, [r0]	.word 0
 	.asciiz "WX   "	.word	LOOP_1,		LOOP_1	shc r1, 1	.word 0		shc r1, 2	.word 0
 test_end:
 
 stack:
+	.res	16
+
+scratch:
