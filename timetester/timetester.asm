@@ -75,7 +75,7 @@ measure:
 
 ; ---- TEST LOOP ------------
 .loop:	ib	.counter
-.code:	.res	16
+.code:	.res	32
 ; ---------------------------
 	; never reached. program returns to the address of the caller from the timer handler
 .counter:
@@ -225,7 +225,8 @@ test_table:
 	.asciiz "RW   "		lw r1, scratch .word END 	lw r1, scratch rw r1, r1 .word END ; 3510
 	.asciiz "PW   "		lw r1, scratch .word END 	lw r1, scratch pw r1, r1 .word END ; 3520
 	.asciiz "RJ   "		lw r2, measure.code+3 .word END	lw r2, measure.code+3 rj r1, r2 .word END ; 2810
-	; IS
+	.asciiz "IS   "		lwt r1, -1 lw r2, scratch rz r2 .word END	lwt r1, -1 lw r2, scratch rz r2 is r1, r2 .word END ; TODO: time
+	.asciiz "IS/P "		lwt r1, 0 lw r2, scratch rz r2 jgs -1 .word END	lwt r1, 0 lw r2, scratch rz r2 is r1, r2 jgs -1 .word END ; TODO: time
 	; BB
 	; BM
 	; BS
@@ -263,8 +264,8 @@ test_table:
 	.asciiz "CB   "		lwt r1, 0 .word END		lwt r1, 0 cb r1, r1 .word END ; 5500
 
 	; --- KA1 --------------------------------------------------------
-	.asciiz "AWT+ "		.word END 			awt r1, 1 .word END ; 2660
-	.asciiz "AWT- "		.word END 			awt r1, -1 .word END ; 3140
+	.asciiz "AWT/+"		.word END 			awt r1, 1 .word END ; 2660
+	.asciiz "AWT/-"		.word END 			awt r1, -1 .word END ; 3140
 	; TRB
 	; IRB
 	; DRB
@@ -274,9 +275,9 @@ test_table:
 	.asciiz "RWS  "		.word END 			rws r1, 2 .word END ; 3990
 
 	; --- JS ---------------------------------------------------------
-	.asciiz "UJS- "		.word END			ujs -1 .word END ; 3140
-	.asciiz "UJS+ "		.word END			ujs 0 .word END ; 2650
-	.asciiz "JLS  "		lw r0, ?L .word END		lw r0, ?L jls 0 .word END ; 2660 (2200 NEF)
+	.asciiz "UJS/+"		.word END			ujs 0 .word END ; 2650
+	.asciiz "UJS/-"		.word END			ujs -1 .word END ; 3140
+	.asciiz "JLS  "		lw r0, ?L .word END		lw r0, ?L jls 0 .word END ; 2660
 	.asciiz "JES  "		lw r0, ?E .word END		lw r0, ?E jes 0 .word END
 	.asciiz "JGS  "		lw r0, ?G .word END		lw r0, ?G jgs 0 .word END
 	.asciiz "JVS  "		lw r0, ?V .word END		lw r0, ?V jvs 0 .word END
@@ -301,8 +302,8 @@ test_table:
 	.asciiz "SRY  "		.word END			sry r1 .word END ; 2830
 	.asciiz "NGL  "		.word END			ngl r1 .word END
 	.asciiz "RPC  "		.word END			rpc r1 .word END
-	.asciiz "SHC1 "		.word END			shc r1, 1 .word END ; 2830
-	.asciiz "SHC0 "		.word END			shc r1, 0 .word END ; 7700
+	.asciiz "SHC/1"		.word END			shc r1, 1 .word END ; 2830
+	.asciiz "SHC/0"		.word END			shc r1, 0 .word END ; 7700
 	.asciiz "RKY  "		.word END			rky r1 .word END
 	.asciiz "ZRB  "		.word END			zrb r1 .word END
 	.asciiz "SXL  "		.word END			sxl r1 .word END
@@ -366,9 +367,12 @@ test_table:
 	.asciiz "RZ   "		lw r1, scratch .word END 		lw r1, scratch rz r1 .word END ; 3510
 	.asciiz "IB   "		rz scratch lw r1, scratch .word END 	rz scratch lw r1, scratch ib r1 .word END ; 5460
 
+	; --- other ------------------------------------------------------
+	.asciiz "NEF  "		lw r0, ?L .word END		lw r0, 0 jls 0 .word END ; 2200
+
 	; --- CPU states -------------------------------------------------
 	.asciiz "P4/Bm"		lw r1, r1 .word END		lw r1, r1+r1 .word END
-	.asciiz "P4/KA"		awt r1, 1 .word END		awt r1, -1 .word END
+	.asciiz "P4/UA"		awt r1, 1 .word END		awt r1, -1 .word END
 	.asciiz "P5   "		lwt r1, 0 lw r1, r1 .word END	lwt r1, 0 lw r1, [r1] .word END
 	.asciiz "WX   "		shc r1, 1 .word END		shc r1, 2 .word END
 	.asciiz "WA   "		slz r1 .word END		nga r1 .word END
