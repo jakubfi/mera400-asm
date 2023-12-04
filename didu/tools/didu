@@ -166,7 +166,7 @@ class DiskDumper:
         if skip_media_check and Path(self.image.image_name).exists():
             print("You are about to update existing image from an unknown media.")
             name = input("Enter full image name to continue: ")
-            if name != self.image.image_name:
+            if name != str(self.image.image_name):
                 raise DataPresent("Wrong image name")
             else:
                 return
