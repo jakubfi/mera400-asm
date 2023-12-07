@@ -72,6 +72,7 @@ measure:
 	; predefined register and memory contents
 	rz	scratch
 	lwt	r0, -1
+	lw	r2, 1
 	lw	r3, -1
 	lw	r4, timer_enable
 	lw	r5, scratch<<1
@@ -234,8 +235,8 @@ test_table:
 	.asciiz "RW   "		.word END 			rw r1, r6 .word END ; 3510
 	.asciiz "PW   "		.word END 			pw r1, r6 .word END ; 3520
 	.asciiz "RJ   "		lw r2, measure.code+3 .word END	lw r2, measure.code+3 rj r1, r2 .word END ; 2810
-	.asciiz "IS   "		rz r6 .word END			rz r6 is r3, r6 .word END ; TODO: time
-	.asciiz "IS/P "		rz r6 jn r7 .word END		rz r6 is r7, r6 jn r7 .word END ; TODO: time
+	.asciiz "IS   "		rz r6 .word END			rz r6 is r3, r6 .word END ; 5860
+	.asciiz "IS/P "		rz r6 jn r7 .word END		rz r6 is r7, r6 jn r7 .word END ; 4220
 	; BB
 	; BM
 	; BS
@@ -275,16 +276,18 @@ test_table:
 	; --- KA1 --------------------------------------------------------
 	.asciiz "AWT/+"		.word END 			awt r1, 1 .word END ; 2660
 	.asciiz "AWT/-"		.word END 			awt r1, -1 .word END ; 3140
-	; TRB
-	; IRB
-	; DRB
+	.asciiz "TRB  "		.word END 			trb r7, 1 .word END
+	.asciiz "IRB=0"		lwt r1, -1 .word END		lwt r1, -1 irb r1, 0 .word END ; 2660
+	.asciiz "IRB!0"		lwt r1, -2 .word END 		lwt r1, -2 irb r1, 0 .word END ; 3140
+	.asciiz "DRB=0"		lwt r1, 1 .word END		lwt r1, 1 drb r1, 0 .word END
+	.asciiz "DRB!0"		lwt r1, 2 .word END 		lwt r1, 2 drb r1, 0 .word END
 	.asciiz "CWT  "		.word END 			cwt r1, 1 .word END
 	.asciiz "LWT  "		.word END 			lwt r1, 1 .word END ; 2510
 	.asciiz "LWS  "		.word END 			lws r1, 1 .word END ; 4230
 	.asciiz "RWS  "		.word END 			rws r1, 2 .word END ; 3990
 
 	; --- JS ---------------------------------------------------------
-	.asciiz "UJS/+"		.word END			ujs 0 .word END ; 2650
+	.asciiz "UJS  "		.word END			ujs 0 .word END ; 2650
 	.asciiz "JLS  "		.word END			jls 0 .word END ; 2660
 	.asciiz "JES  "		.word END			jes 0 .word END
 	.asciiz "JGS  "		.word END			jgs 0 .word END
@@ -385,6 +388,7 @@ test_table:
 	.asciiz "WX   "		shc r1, 1 .word END		shc r1, 2 .word END
 	.asciiz "WA   "		slz r1 .word END		nga r1 .word END
 	.asciiz "W&   "		rpc r1 .word END		nga r1 .word END
+	.asciiz "WE   "		lwt r1, 1 drb r1, 0 .word END	lwt r1, 2 drb r1, 0 .word END ; 480
 test_end:
 
 stack:
