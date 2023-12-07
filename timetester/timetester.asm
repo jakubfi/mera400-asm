@@ -31,7 +31,7 @@ uzdat_list:
 	.const	TIMER_CYCLE_MS 10
 	.const	TIMER_PROC_TIME_US 30 ; measured correction for timer interrupt serving
 test_time_ns:
-	.dword	(LOOPS * TIMER_CYCLE_MS * 1000000) - (LOOPS * TIMER_PROC_TIME_US * 1000)
+	.float	99700000 ; (LOOPS * TIMER_CYCLE_MS * 1000000) - (LOOPS * TIMER_PROC_TIME_US * 1000) emas can't float :-(
 
 ; ------------------------------------------------------------------------
 timer_proc:
@@ -116,33 +116,58 @@ run_test:
 	lj	measure
 	im	izero
 	lw	r7, [measure.counter]
-	rw	r7, .cal_loops
+	rw	r7, .cal_loops		; store as first word of float mantissa
 
 	; measure
 	lj	measure
 	im	izero
 	lw	r7, [measure.counter]
-	rw	r7, .test_loops
+	rw	r7, .test_loops		; store as first word of float mantissa
+
+	; convert measurements to float
+	rz	.cal_loops+1		; second word of float mantissa = 0
+	rz	.test_loops+1		; second word of float mantissa = 0
+	lwt	r1, 15
+	rw	r1, .cal_loops+2	; float exponent = 15
+	rw	r1, .test_loops+2	; float exponent = 15
+	lf	.cal_loops
+	nrf
+	rf	.cal_loops
+	lf	.test_loops
+	nrf
+	rf	.test_loops
 
 	; calculate result
-	ld	test_time_ns
-	dw	.test_loops
-	lw	r3, r2
-	ld	test_time_ns
-	dw	.cal_loops
-	sw	r3, r2	; result
-	rw	r3, .measured_time_ns
+	lf	test_time_ns
+	df	.cal_loops
+	rf	.measured_time_ns
+	lf	test_time_ns
+	df	.test_loops
+	sf	.measured_time_ns
+	rf	.measured_time_ns
 
 	im	imask
 
-	; print result
+	; convert result back to 16-bit int
 	lw	r1, [.measured_time_ns]
+	lw	r4, [.measured_time_ns+2]
+	zlb	r4
+.shift_loop:
+	cwt	r4, 15
+	jes	.print
+	jgs	.print_none
+	srz	r1
+	awt	r4, 1
+	ujs	.shift_loop
+
+.print:
+	; print result
 	lw	r2, .str_buf
 	lj	unsigned2asc
 	lw	r1, .str_buf
 	lw	r2, PC
 	lj	puts
-
+.print_none:
 	lw	r1, ' '
 	lw	r2, PC
 	lj	putc
@@ -150,28 +175,6 @@ run_test:
 	lw	r1, 'ns'
 	lw	r2, PC
 	lj	put2c
-
-;	lw	r1, '\t'
-;	lw	r2, PC
-;	lj	putc
-;
-;	lw	r1, [.cal_loops]
-;	lw	r2, .str_buf
-;	lj	unsigned2asc
-;	lw	r1, .str_buf
-;	lw	r2, PC
-;	lj	puts
-;
-;	lw	r1, ' '
-;	lw	r2, PC
-;	lj	putc
-;
-;	lw	r1, [.test_loops]
-;	lw	r2, .str_buf
-;	lj	unsigned2asc
-;	lw	r1, .str_buf
-;	lw	r2, PC
-;	lj	puts
 
 	lw	r1, '\r\n'
 	lw	r2, PC
@@ -181,11 +184,11 @@ run_test:
 
 	uj	[run_test]
 .cal_loops:
-	.res	1
+	.res	3
 .test_loops:
-	.res	1
+	.res	3
 .measured_time_ns:
-	.res	1
+	.res	3
 .str_buf:
 	.res	16
 
