@@ -37,10 +37,10 @@ test_time_ns:
 timer_proc:
 	ib	loops		; loops++, if loops < 0 ...
 	lip			; ...then next test loop
-	lw	r5, [measure]	; if loops==0, then load the exit adddres from last "measure" call
+	lw	r5, [measure]	; else: load the exit adddres from last "measure" call
 	md	[STACKP]	; and replace pre-interrupt IC stored on stack with it, so the test loop
 	rw	r5, -SP_IC	; breaks, and control is transferred back to after the original "lj measure"
-.kim:	lip
+	lip
 
 loops:	.res	1
 
@@ -53,7 +53,7 @@ measure:
 	rw	r5, loops		; make it available globally for the timer interrupt handler
 
 	lw	r2, .code		; r2 is a pointer to loop code destination
-	lw	r3, 1+.code-.loop	; r3 is loop instruction counter, starting from 3 (for the "ib .couter" + "ujs")
+	lw	r3, 1+.code-.loop	; r3 is loop instruction counter, starting from 3 (for the "ib .counter" + "ujs")
 	lw	r7, [test_ptr]		; r7 = current test program instruction pointer
 .next_instruction:
 	lw	r1, [r7]		; r1 = current test program instruction
@@ -85,8 +85,9 @@ measure:
 
 ; ---- TEST LOOP ------------
 .loop:	ib	.counter
-.code:	.res	32
+.code:	.res	16
 ; ---------------------------
+
 	; never reached. program returns to the address of the caller from the timer handler
 .counter:
 	.res	1
@@ -200,6 +201,7 @@ start:
 	lw	r1, CH
 	lw	r2, uzdat_list
 	lj	kz_init
+restart:
 	im	imask
 
 	lw	r1, '\r\n'
@@ -222,8 +224,9 @@ next_test:
 	jes	fin
 	uj	next_test
 fin:
+	im	izero
 	hlt
-	ujs	fin
+	uj	restart
 
 test_ptr:
 	.word	test_table
@@ -279,12 +282,12 @@ test_table:
 	; --- KA1 --------------------------------------------------------
 	.asciiz "AWT/+"		.word END 			awt r1, 1 .word END ; 2660
 	.asciiz "AWT/-"		.word END 			awt r1, -1 .word END ; 3140
-	.asciiz "TRB  "		.word END 			trb r7, 1 .word END
+	.asciiz "TRB  "		.word END 			trb r7, 1 .word END ; 2660
 	.asciiz "IRB=0"		lwt r1, -1 .word END		lwt r1, -1 irb r1, 0 .word END ; 2660
 	.asciiz "IRB!0"		lwt r1, -2 .word END 		lwt r1, -2 irb r1, 0 .word END ; 3140
 	.asciiz "DRB=0"		lwt r1, 1 .word END		lwt r1, 1 drb r1, 0 .word END
 	.asciiz "DRB!0"		lwt r1, 2 .word END 		lwt r1, 2 drb r1, 0 .word END
-	.asciiz "CWT  "		.word END 			cwt r1, 1 .word END
+	.asciiz "CWT  "		.word END 			cwt r1, 1 .word END ; 2650
 	.asciiz "LWT  "		.word END 			lwt r1, 1 .word END ; 2510
 	.asciiz "LWS  "		.word END 			lws r1, 1 .word END ; 4230
 	.asciiz "RWS  "		.word END 			rws r1, 2 .word END ; 3990
