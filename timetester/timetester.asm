@@ -233,6 +233,7 @@ test_ptr:
 
 	.const	END -1
 test_table:
+	; r0=-1, r2=1, r3=-1, r6=scratch, r7=0
 	; --- normal argument --------------------------------------------
 	.asciiz "LW   "		.word END 			lw r1, r1 .word END ; 2500
 	.asciiz "TW   "		.word END 			tw r1, r7 .word END ; 3750
@@ -243,13 +244,13 @@ test_table:
 	.asciiz "RJ   "		lw r2, measure.code+3 .word END	lw r2, measure.code+3 rj r1, r2 .word END ; 2810
 	.asciiz "IS   "		rz r6 .word END			rz r6 is r3, r6 .word END ; 5860
 	.asciiz "IS/P "		rz r6 jn r7 .word END		rz r6 is r7, r6 jn r7 .word END ; 4220
-	; BB
-	; BM
-	; BS
-	; BC
-	; BN
-	; OU
-	; IN
+	.asciiz "BB   "		.word END			bb r7, r2 .word END ; 2660 // Ra * N != N
+	.asciiz "BM   "		.word END			bm r3, r6 .word END ; 4220 // [N] * Ra != Ra
+	.asciiz "BS   "		lwt r7, 3 .word END		lwt r7, 3 bs r3, r2 .word END ; 3140 // Ra * R7 != N * R7
+	.asciiz "BC   "		.word END			bc r3, r7 .word END ; 2650 // Ra * N == N
+	.asciiz "BN   "		.word END			bn r3, r3 .word END ; 2660 // Ra * N != 0
+	; OU (not measured)
+	; IN (not measured)
 
 	; --- F/D --------------------------------------------------------
 	.asciiz "AD   "		.word END			ad r7 .word END ; 8780
@@ -303,9 +304,9 @@ test_table:
 	.asciiz "JCS  "		.word END			jcs 0 .word END
 
 	; --- KA2 --------------------------------------------------------
-	; BLC
+	.asciiz "BLC  "		.word END			blc 1<<8 .word END ; 2650 // R0(0÷7) ∧ b == b
 	; EXL
-	; BRC
+	.asciiz "BRC  "		.word END			brc 1 .word END ; 2660 // R0(8÷15) ∧ b == b
 	; NRF
 
 	; --- C ----------------------------------------------------------
@@ -315,7 +316,7 @@ test_table:
 	.asciiz "NGA  "		.word END			nga r1 .word END ; 2660
 	.asciiz "SLZ  "		.word END			slz r1 .word END ; 2350
 	.asciiz "SLY  "		.word END			sly r1 .word END ; 2350
-	.asciiz "SLX  "		.word END			slx r1 .word END ; 2830
+	.asciiz "SLX  "		.word END			slx r1 .word END ; 2350
 	.asciiz "SRY  "		.word END			sry r1 .word END ; 2830
 	.asciiz "NGL  "		.word END			ngl r1 .word END ; 2350
 	.asciiz "RPC  "		.word END			rpc r1 .word END ; 2180
