@@ -72,8 +72,8 @@ measure:
 	; predefined register and memory contents
 	rz	scratch
 	lwt	r0, -1
-	lw	r2, 1
-	lw	r3, -1
+	lwt	r2, 1
+	lwt	r3, -1
 	lw	r4, timer_enable
 	lw	r5, scratch<<1
 	lw	r6, scratch
@@ -269,12 +269,12 @@ test_table:
 	.asciiz "CW   "		.word END 			cw r1, r1 .word END ; 2660
 	.asciiz "OR   "		.word END 			or r1, r1 .word END ; 2650
 	.asciiz "OM   "		.word END		 	om r1, r6 .word END ; 5290
-	.asciiz "NR   "		.word END 			nr r1, r1 .word END
-	.asciiz "NM   "		.word END 			nm r1, r6 .word END
-	.asciiz "ER   "		.word END 			er r1, r1 .word END
-	.asciiz "EM   "		.word END 			em r1, r6 .word END
-	.asciiz "XR   "		.word END 			xr r1, r1 .word END
-	.asciiz "XM   "		.word END		 	xm r1, r6 .word END
+	.asciiz "NR   "		.word END 			nr r1, r1 .word END ; 2660
+	.asciiz "NM   "		.word END 			nm r1, r6 .word END ; 5280
+	.asciiz "ER   "		.word END 			er r1, r1 .word END ; 2660
+	.asciiz "EM   "		.word END 			em r1, r6 .word END ; 5300
+	.asciiz "XR   "		.word END 			xr r1, r1 .word END ; 2660
+	.asciiz "XM   "		.word END		 	xm r1, r6 .word END ; 5280
 	.asciiz "CL   "		.word END 			cl r1, r1 .word END ; 2660
 	.asciiz "LB   "		.word END			lb r1, r5 .word END ; 5500
 	.asciiz "RB   "		.word END			rb r1, r5 .word END ; 6420
@@ -296,16 +296,16 @@ test_table:
 	; --- JS ---------------------------------------------------------
 	.asciiz "UJS  "		.word END			ujs 0 .word END ; 2650
 	.asciiz "JLS  "		.word END			jls 0 .word END ; 2660
-	.asciiz "JES  "		.word END			jes 0 .word END
-	.asciiz "JGS  "		.word END			jgs 0 .word END
-	.asciiz "JVS  "		lw r0, r3 .word END		lw r0, r3 jvs 0 .word END
-	.asciiz "JXS  "		.word END			jxs 0 .word END
-	.asciiz "JYS  "		.word END			jys 0 .word END
-	.asciiz "JCS  "		.word END			jcs 0 .word END
+	.asciiz "JES  "		.word END			jes 0 .word END ; 2650
+	.asciiz "JGS  "		.word END			jgs 0 .word END ; 2650
+	.asciiz "JVS  "		lw r0, r3 .word END		lw r0, r3 jvs 0 .word END ; 2660
+	.asciiz "JXS  "		.word END			jxs 0 .word END ; 2660
+	.asciiz "JYS  "		.word END			jys 0 .word END ; 2660
+	.asciiz "JCS  "		.word END			jcs 0 .word END ; 2660
 
 	; --- KA2 --------------------------------------------------------
 	.asciiz "BLC  "		.word END			blc 1<<8 .word END ; 2650 // R0(0÷7) ∧ b == b
-	; EXL
+	; EXL 12080 (not measured)
 	.asciiz "BRC  "		.word END			brc 1 .word END ; 2660 // R0(8÷15) ∧ b == b
 	; NRF
 
@@ -334,23 +334,23 @@ test_table:
 	.asciiz "LPC  "		.word END			lpc r1 .word END ; 2170
 
 	; --- S ----------------------------------------------------------
-	; HLT (not measured)
-	; MCL (not measured)
+	; HLT 1900 until CPU halts (not measured)
+	; MCL 13960 - instruction time + interface timeout (not measured)
 	.asciiz "SIT  "		.word END			sit .word END ; 2200
 	.asciiz "SIL  "		.word END			sil .word END ; 2190
 	.asciiz "SIU  "		.word END			siu .word END ; 2190
 	.asciiz "CIT  "		.word END			cit .word END ; 2200
-	; LIP
+	; LIP 9620
 	; GIU (not measured)
 	; GIL (not measured)
 
 	; --- J ----------------------------------------------------------
 	.asciiz "UJ   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 uj r1 .word END ; 2500
-	.asciiz "JL   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jl r1 .word END
-	.asciiz "JE   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 je r1 .word END
-	.asciiz "JG   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jg r1 .word END
-	.asciiz "JZ   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jz r1 .word END
-	.asciiz "JM   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jm r1 .word END
+	.asciiz "JL   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jl r1 .word END ; 2500
+	.asciiz "JE   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 je r1 .word END ; 2500
+	.asciiz "JG   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jg r1 .word END ; 2510
+	.asciiz "JZ   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jz r1 .word END ; 2500
+	.asciiz "JM   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 jm r1 .word END ; 2510
 	.asciiz "JN   "		lw r1, measure.code+4 lwt r0, 0 .word END	lw r1, measure.code+4 lwt r0, 0 jn r1 .word END ; 2500
 	.asciiz "LJ   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 lj r1 .word 0 .word END ; 4000
 
@@ -359,27 +359,27 @@ test_table:
 	.asciiz "LF   "		lwt r1, 0 .word END		lwt r1, 0 lf r1 .word END ; 7210
 	.asciiz "LA   "		lwt r1, 0 .word END		lwt r1, 0 la r1 .word END ; 13480
 	.asciiz "LL   "		lwt r1, 0 .word END		lwt r1, 0 ll r1 .word END ; 7200
-	.asciiz "TD   "		lwt r1, 0 .word END		lwt r1, 0 td r1 .word END
-	.asciiz "TF   "		lwt r1, 0 .word END		lwt r1, 0 tf r1 .word END
-	.asciiz "TA   "		lwt r1, 0 .word END		lwt r1, 0 ta r1 .word END
-	.asciiz "TL   "		lwt r1, 0 .word END		lwt r1, 0 tl r1 .word END
+	.asciiz "TD   "		lwt r1, 0 .word END		lwt r1, 0 td r1 .word END ; 5620
+	.asciiz "TF   "		lwt r1, 0 .word END		lwt r1, 0 tf r1 .word END ; 7200
+	.asciiz "TA   "		lwt r1, 0 .word END		lwt r1, 0 ta r1 .word END ; 13480
+	.asciiz "TL   "		lwt r1, 0 .word END		lwt r1, 0 tl r1 .word END ; 7200
 
 	; --- G ----------------------------------------------------------
 	.asciiz "RD   "		.word END			rd r6 .word END ; 5160
 	.asciiz "RF   "		.word END			rf r6 .word END ; 6500
 	.asciiz "RA   "		.word END			ra r6 .word END ; 11960
 	.asciiz "RL   "		.word END			rl r6 .word END ; 6520
-	.asciiz "PD   "		.word END			pd r6 .word END
-	.asciiz "PF   "		.word END			pf r6 .word END
-	.asciiz "PA   "		.word END			pa r6 .word END
-	.asciiz "PL   "		.word END			pl r6 .word END
+	.asciiz "PD   "		.word END			pd r6 .word END ; 5180
+	.asciiz "PF   "		.word END			pf r6 .word END ; 6500
+	.asciiz "PA   "		.word END			pa r6 .word END ; 11840
+	.asciiz "PL   "		.word END			pl r6 .word END ; 6500
 
 	; --- B/N --------------------------------------------------------
 	.asciiz "MB   "		.word END			mb r6 .word END ; 3740
 	.asciiz "IM   "		.word END			im r4 .word END ; 3750
 	.asciiz "KI   "		.word END			ki r6 .word END ; 3510
-	; FI (not measured) 3740
-	; SP
+	; FI 3740 (not measured)
+	.asciiz "SP   "		lw r1, sp_data .word END	lw r1, sp_data sp r1 .word END ; 6920
 	.asciiz "MD   "		lw r1, r1+r1 .word END		md r7 lw r1, r1 .word END ; 2510
 	.asciiz "RZ   "		.word END 			rz r6 .word END ; 3510
 	.asciiz "IB   "		.word END		 	ib r6 .word END ; 5460
@@ -396,6 +396,9 @@ test_table:
 	.asciiz "W&   "		rpc r1 .word END		nga r1 .word END
 	.asciiz "WE   "		lwt r1, 1 drb r1, 0 .word END	lwt r1, 2 drb r1, 0 .word END ; 480
 test_end:
+
+sp_data: ; IC, R0, SR
+	.word	measure.code+3, -1, IMASK_GROUP_H
 
 stack:
 	.res	16
