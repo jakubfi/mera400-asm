@@ -12,6 +12,8 @@ izero:	.word	IMASK_NONE
 
 	.org	INTV_TIMER
 	.word	timer_proc
+	.org	EXLV
+	.word	measure.code+1
 	.org	STACKP
 	.word	stack
 
@@ -305,7 +307,7 @@ test_table:
 
 	; --- KA2 --------------------------------------------------------
 	.asciiz "BLC  "		.word END			blc 1<<8 .word END ; 2650 // R0(0÷7) ∧ b == b
-	; EXL 12080 (not measured)
+	.asciiz "EXL  "		lw r1, [STACKP] awt r2, -4 rw r1, STACKP .word END	exl 0 lw r1, [STACKP] awt r1, -4 rw r1, STACKP .word END ; 12080
 	.asciiz "BRC  "		.word END			brc 1 .word END ; 2660 // R0(8÷15) ∧ b == b
 	; NRF
 
