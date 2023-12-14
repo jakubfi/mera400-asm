@@ -307,7 +307,8 @@ test_table:
 
 	; --- KA2 --------------------------------------------------------
 	.asciiz "BLC  "		.word END			blc 1<<8 .word END ; 2650 // R0(0÷7) ∧ b == b
-	.asciiz "EXL  "		lw r1, [STACKP] awt r2, -4 rw r1, STACKP .word END	exl 0 lw r1, [STACKP] awt r1, -4 rw r1, STACKP .word END ; 12080
+	.asciiz "EXL  "		      lw r1, [scratch] awt r2, -4 rw r1, scratch .word END
+				exl 0 lw r1, [STACKP]  awt r1, -4 rw r1, STACKP  .word END ; 12080
 	.asciiz "BRC  "		.word END			brc 1 .word END ; 2660 // R0(8÷15) ∧ b == b
 	; NRF
 
@@ -342,7 +343,8 @@ test_table:
 	.asciiz "SIL  "		.word END			sil .word END ; 2190
 	.asciiz "SIU  "		.word END			siu .word END ; 2190
 	.asciiz "CIT  "		.word END			cit .word END ; 2200
-	; LIP 9620
+	.asciiz "LIP  "		lw r7, [scratchp] lw r6, r7 awt r7, 4 rw r7, scratch lf lip_data rf r6     .word END
+				lw r7, [STACKP]   lw r6, r7 awt r7, 4 rw r7, STACKP  lf lip_data rf r6 lip .word END ; 9620
 	; GIU (not measured)
 	; GIL (not measured)
 
@@ -401,8 +403,11 @@ test_end:
 
 sp_data: ; IC, R0, SR
 	.word	measure.code+3, -1, IMASK_GROUP_H
+lip_data: ; IC, R0, SR
+	.word	measure.code+10, -1, IMASK_GROUP_H
 
 stack:
 	.res	16
-
+scratchp:
+	.word scratch
 scratch:
