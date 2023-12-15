@@ -71,7 +71,7 @@ measure:
 	rw	r3, r2			; store updated ujs
 	rw	r7, test_ptr		; store current test pointer for the caller
 
-	; predefined register and memory contents
+	; predefined register and memory contents - makes tests easier and shorter
 	rz	scratch
 	lwt	r0, -1
 	lwt	r2, 1
@@ -211,8 +211,8 @@ restart:
 	lj	put2c
 
 	im	timer_enable
-	hlt			; make sure first two timer interrupts pass by
-	hlt			; those are prone to have a shorter cycle
+	hlt			; Make sure first two timer interrupts pass by. Those are prone to have
+	hlt			; a shorter cycle when clock is enabled after the program has started.
 	hlt			; +1 just in case
 	im	izero
 
@@ -251,8 +251,8 @@ test_table:
 	.asciiz "BS   "		lwt r7, 3 .word END		lwt r7, 3 bs r3, r2 .word END ; 3140 // Ra * R7 != N * R7
 	.asciiz "BC   "		.word END			bc r3, r7 .word END ; 2650 // Ra * N == N
 	.asciiz "BN   "		.word END			bn r3, r3 .word END ; 2660 // Ra * N != 0
-	; OU (not measured)
-	; IN (not measured)
+	; OU (not measured, device dependant)
+	; IN (not measured, device dependant)
 
 	; --- F/D --------------------------------------------------------
 	.asciiz "AD   "		.word END			ad r7 .word END ; 8780
@@ -337,16 +337,16 @@ test_table:
 	.asciiz "LPC  "		.word END			lpc r1 .word END ; 2170
 
 	; --- S ----------------------------------------------------------
-	; HLT 1900 until CPU halts (not measured)
-	; MCL 13960 - instruction time + interface timeout (not measured)
+	; HLT 1900 until CPU halts (not measured, halts the CPU)
+	; MCL 13960 - instruction time + interface timeout (not measured, resets SR)
 	.asciiz "SIT  "		.word END			sit .word END ; 2200
 	.asciiz "SIL  "		.word END			sil .word END ; 2190
 	.asciiz "SIU  "		.word END			siu .word END ; 2190
 	.asciiz "CIT  "		.word END			cit .word END ; 2200
 	.asciiz "LIP  "		lw r7, [scratchp] lw r6, r7 awt r7, 4 rw r7, scratch lf lip_data rf r6     .word END
 				lw r7, [STACKP]   lw r6, r7 awt r7, 4 rw r7, STACKP  lf lip_data rf r6 lip .word END ; 9620
-	; GIU (not measured)
-	; GIL (not measured)
+	; GIU (not measured, requires 2nd CPU)
+	; GIL (not measured, requires 2nd CPU)
 
 	; --- J ----------------------------------------------------------
 	.asciiz "UJ   "		lw r1, measure.code+3 .word END			lw r1, measure.code+3 uj r1 .word END ; 2500
@@ -382,7 +382,7 @@ test_table:
 	.asciiz "MB   "		.word END			mb r6 .word END ; 3740
 	.asciiz "IM   "		.word END			im r4 .word END ; 3750
 	.asciiz "KI   "		.word END			ki r6 .word END ; 3510
-	; FI 3740 (not measured)
+	; FI 3740 (not measured, destroys interrupts)
 	.asciiz "SP   "		lw r1, sp_data .word END	lw r1, sp_data sp r1 .word END ; 6920
 	.asciiz "MD   "		lw r1, r1+r1 .word END		md r7 lw r1, r1 .word END ; 2510
 	.asciiz "RZ   "		.word END 			rz r6 .word END ; 3510
