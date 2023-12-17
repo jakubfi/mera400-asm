@@ -33,7 +33,7 @@ uzdat_list:
 	.const	TIMER_CYCLE_MS 10
 	.const	TIMER_PROC_TIME_US 30 ; measured correction for timer interrupt serving
 test_time_ns:
-	.float	99700000 ; (LOOPS * TIMER_CYCLE_MS * 1000000) - (LOOPS * TIMER_PROC_TIME_US * 1000) emas can't float :-(
+	.float	(LOOPS * TIMER_CYCLE_MS * 1000000) - (LOOPS * TIMER_PROC_TIME_US * 1000)
 
 ; ------------------------------------------------------------------------
 timer_proc:
