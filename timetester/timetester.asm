@@ -171,18 +171,28 @@ run_test:
 	lw	r2, PC
 	lj	puts
 .print_none:
-	lw	r1, ' '
-	lw	r2, PC
-	lj	putc
 
-	lw	r1, 'ns'
-	lw	r2, PC
-	lj	put2c
+	ib	.col_cnt
+	ujs	.same_line
+
+	lw	r1, -5
+	rw	r1, .col_cnt
 
 	lw	r1, '\r\n'
 	lw	r2, PC
 	lj	put2c
+	ujs	.fin
 
+.same_line:
+	lw	r1, ' |'
+	lw	r2, PC
+	lj	put2c
+
+	lw	r1, ' '
+	lw	r2, PC
+	lj	putc
+	ujs	.fin
+.fin:
 	im	izero
 
 	uj	[run_test]
@@ -194,6 +204,8 @@ run_test:
 	.res	3
 .str_buf:
 	.res	16
+.col_cnt:
+	.word	-5
 
 ; ------------------------------------------------------------------------
 ; ---- MAIN --------------------------------------------------------------
