@@ -570,7 +570,6 @@ memcpy:
 	awt	r2, 1
 	drb	r3, .loop
 .done:
-	lw	r1, r3
 	uj	[memcpy]
 
 ; ------------------------------------------------------------------------
@@ -593,7 +592,6 @@ memcmp:
 	blc	?E
 	drb	r3, .loop
 .done:
-	lw	r1, r3
 	uj	[memcmp]
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas
