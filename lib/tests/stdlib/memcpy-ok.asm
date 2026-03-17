@@ -23,8 +23,6 @@ halt:
 	hlt	044
 	ujs	halt
 
-; XPCT r1 : 0
-
 ; XPCT [9]  : -1
 ; XPCT [10] : 1
 ; XPCT [11] : 2

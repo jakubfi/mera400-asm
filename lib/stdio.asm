@@ -574,10 +574,12 @@ memcpy:
 
 ; ------------------------------------------------------------------------
 ; Compare memory contents
-;
+; ARGS:
 ; r1 - buffer 1 address
 ; r2 - buffer 2 address
 ; r3 - word count
+; RETURN:
+; r1=0 - match, r1 !=0 - no match
 memcmp:
 	.res	1
 
@@ -592,6 +594,7 @@ memcmp:
 	blc	?E
 	drb	r3, .loop
 .done:
+	lw	r1, r3
 	uj	[memcmp]
 
 ; vim: tabstop=8 shiftwidth=8 autoindent syntax=emas
