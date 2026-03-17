@@ -54,45 +54,24 @@ prngtimer:
 .cont:
 	lip
 
-
-; ------------------------------------------------------------------------
-; Unsigned multiply
-; r1 - multipier address
-; r2 - multiplicand
-; return: [r1, r2] = r2 * [r1]
-umul:
-	lw	r3, [r1]
-	sxl	r3
-	srz	r3
-	rw	r3, r1
-	lw	r3, r2
-	mw	r1
-	slz	r2
-	sly	r1
-	jxs	.do_fix
-	uj	r4
-.do_fix:
-	aw	r2, r3
-	ac	r1, 0
-	uj	r4
-
 ; ------------------------------------------------------------------------
 ; Park-Miller-Carta pseudo-random number generator implementation for MERA-400
 ;
 ; RETURN: [r1, r2] - random 31-bit number
 urand:	.res	1
+	lw	r1, [.seed+1]
+	sxu	r1		; set X if low seed is negative
 
 	; lo = cpmc * (seed & 0xFFFF)
 	lw	r2, .cpmc
-	;lw	r1, .seed+1
-	;rj	r4, umul
 	mw	.seed+1
+	; correct for signed multiply if low seed was negative
+	brc	?X
+	ad	.ufix
 	rd	.lo
 
 	; hi = cpmc * (seed >> 16)
 	lw	r2, .cpmc
-	;lw	r1, .seed
-	;rj	r4, umul
 	mw	.seed
 	rd	.hi
 
@@ -104,27 +83,26 @@ urand:	.res	1
 	rd	.lo
 
 	; lo += hi >> 15
-	lwt	r1, 0
 	lw	r2, [.hi]
-	lw	r3, [.hi+1]
-	slz	r3
+	lw	r1, [.hi+1]	; r1 just for temporary use here
+	slz	r1		; just to set Y to .hi+1's MSB
 	sly	r2
+	lwt	r1, 0
 	sly	r1
 	ad	.lo
 
 	; if (lo > 0x7FFFFFFF) lo -= 0x7FFFFFFF;
-	cl	r1, 0x8000
-	jls	.done
+	blc	?M
 	sd	.fix
 .done:
 	; seed = lo
 	rd	.seed
-
 	uj	[urand]
 
 	.const	.cpmc 16807
 .seed:	.dword	1
 .fix:	.dword	0x7fffffff
+.ufix:	.dword	0x10000 * .cpmc
 .lo:	.res	2
 .hi:	.res	2
 

@@ -7,7 +7,7 @@ $(PROJECT): $(PROJECT).asm $(INCLUDES)
 	emas -o $(PROJECT) -c mera400 -O raw $(PROJECT).asm
 
 emu: $(PROJECT)
-	em400 -c $(CFG) -p $(PROJECT)
+	em400 -u curses -c $(CFG) -p $(PROJECT)
 
 push: $(PROJECT)
 	embin -o $(UPLOAD_PORT) $(PROJECT)
