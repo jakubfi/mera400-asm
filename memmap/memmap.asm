@@ -218,9 +218,9 @@ print_write_reqs:
 
 	uj	[print_write_reqs]
 
-.txt:	.asciiz	"\r\nMemory check map:\r\n--------------------------\r\n"
-.msize:	.asciiz	"\r\nMemory size: "
-.msizet:.asciiz	" kwords\n\r"
+.txt:	.asciiz	"\r\nMapa fizyczna pamieci:\r\n------------------------------\r\n"
+.msize:	.asciiz	"\r\nRozmiar pamieci: "
+.msizet:.asciiz	" kslow\n\r"
 .buf:	.res	10
 .zero:	.word	0
 .int:	.word	0
