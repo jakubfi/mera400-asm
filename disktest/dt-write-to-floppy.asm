@@ -25,8 +25,6 @@ stack:	.res	11*4, 0x0ded
 
 	.const	CH 15
 	.const	FLOP CH\IO_CHAN | 2\IO_DEV
-uzdat_list:
-	.word	-1
 
 	.const	TRACKS 76
 	.const	SPT 26
@@ -82,7 +80,6 @@ write_image:
 
 start:
 	lw	r1, CH
-	lw	r2, uzdat_list
 	lj	kz_init
 
 	im	imask

@@ -29,8 +29,6 @@ stack:	.res	11*4, 0x0ded
 	.const	CH 15
 	.const	TERM	CH\IO_CHAN | 0\IO_DEV
 	.const	PC	CH\IO_CHAN | 0\IO_DEV
-uzdat_list:
-	.word	PC, TERM, -1
 
 ; ------------------------------------------------------------------------
 ; ------------------------------------------------------------------------
@@ -41,7 +39,6 @@ start:
 	; initialize KZ
 
 	lw	r1, CH
-	lw	r2, uzdat_list
 	lj	kz_init
 
 	im	imask

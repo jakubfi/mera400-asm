@@ -26,9 +26,6 @@ stack:	.res	11*4, 0x0ded
 	.const	CH 15
 	.const	TERM	CH\IO_CHAN | 0\IO_DEV
 
-uzdat_list:
-	.word	TERM, -1
-
 	.include kz.asm
 	.include stdio.asm
 	.include crc.asm
@@ -50,9 +47,8 @@ uzdat_list:
 	lw	r2, len		\
 	lj	crc16
 
-#define kz_init(chan, uzdat_list) \
+#define kz_init(chan) \
 	lw	r1, chan	\
-	lw	r2, uzdat_list	\
 	lj	kz_init	
 
 ; ------------------------------------------------------------------------
@@ -61,7 +57,7 @@ uzdat_list:
 start:
 	mcl
 
-	kz_init(CH, uzdat_list)
+	kz_init(CH)
 
 	im	imask
 

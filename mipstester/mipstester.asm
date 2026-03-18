@@ -23,8 +23,6 @@ izero:	.word	IMASK_NONE
 ; ------------------------------------------------------------------------
 	.const	CH 15
 	.const	PC CH\IO_CHAN | 0\IO_DEV
-uzdat_list:
-	.word	PC, -1
 
 ; ------------------------------------------------------------------------
 	.const	LOOPS 10
@@ -108,7 +106,6 @@ run_test:
 start:
 	; initialize KZ
 	lw	r1, CH
-	lw	r2, uzdat_list
 	lj	kz_init
 
 	im	imask
