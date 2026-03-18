@@ -1,10 +1,10 @@
 PROJECT=rand
 CFG=em400.ini
 UPLOAD_PORT=/dev/ttyUSB0
-INCLUDES=kz.asm stdio.asm prng.inc
+INCLUDES=../lib/kz.asm ../lib/stdio.asm ../lib/prng.inc
 
 $(PROJECT): $(PROJECT).asm $(INCLUDES)
-	emas -o $(PROJECT) -c mera400 -O raw $(PROJECT).asm
+	emas -o $(PROJECT) -c mera400 -I ../lib $(PROJECT).asm
 
 emu: $(PROJECT)
 	em400 -u curses -c $(CFG) -p $(PROJECT)
