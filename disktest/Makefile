@@ -3,13 +3,14 @@ CFG=em400.ini
 HW_UPLOAD_PORT=/dev/ttyUSB0
 EM400=~/projekty/mera400/em400/build/em400
 EMBIN=embin
+INCLUDES=../lib/kz.asm ../lib/stdio.asm
 EMAS=emas
 
-$(PRJ): $(PRJ).ppasm
-	$(EMAS) -o $(PRJ) -c mera400 -Oraw $(PRJ).ppasm
+$(PRJ): $(PRJ).ppasm $(INCLUDES)
+	$(EMAS) -o $(PRJ) -c mera400 -I ../lib $(PRJ).ppasm
 
 %.ppasm: %.asm
-	cpp -P -undef $< -o $@
+	cpp -I ../lib -P -undef $< -o $@
 
 emu: $(PRJ)
 	$(EM400) -c $(CFG) -p $(PRJ)
@@ -23,5 +24,5 @@ clean:
 $(PRJ).inc:	$(PRJ)
 	od -v --endian=big -x $(PRJ) | sed -e 's/^[0-9]*/.word/g' -e 's/\([0-9a-f]\{4\}\)/0x\1/g' -e 's/\([0-9a-f]\{4\}\)\ /\1, /g' | grep -v '^.word$$' > $(PRJ).inc
 
-dt-write-to-floppy:	dt-write-to-floppy.asm $(PRJ).inc
+dt-write-to-floppy: dt-write-to-floppy.asm $(PRJ).inc
 	$(EMAS) -o dt-write-to-floppy -c mera400 -Oraw dt-write-to-floppy.asm
