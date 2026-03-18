@@ -29,8 +29,6 @@ stack:	.res	11*4, 0xdead
 	.const	CH	15
 	.const	PC	CH\IO_CHAN | 0\IO_DEV
 	.const	FLOP	CH\IO_CHAN | 2\IO_DEV
-uzdat_list:
-	.word	PC, -1
 
 	.const	TRACKS	76
 	.const	SPT	26
@@ -42,7 +40,7 @@ uzdat_list:
 ; ------------------------------------------------------------------------
 
 start:
-	kz_init(CH, uzdat_list)
+	kz_init(CH)
 	im	imask
 
 	kz_wrseek(1\KZ_FLOPPY_TRACK | 1\KZ_FLOPPY_SECTOR, FLOP)
