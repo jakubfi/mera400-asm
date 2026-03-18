@@ -1,4 +1,3 @@
 binaries
-libtest
-em400.log
+*.log
 __pycache__
