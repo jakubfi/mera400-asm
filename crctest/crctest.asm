@@ -23,12 +23,11 @@ stack:	.res	11*4, 0x0ded
 
 ; ------------------------------------------------------------------------
 
-	.const	CH 7
+	.const	CH 15
 	.const	TERM	CH\IO_CHAN | 0\IO_DEV
-	.const	PC	CH\IO_CHAN | 7\IO_DEV
 
 uzdat_list:
-	.word	TERM, PC, -1
+	.word	TERM, -1
 
 	.include kz.asm
 	.include stdio.asm
