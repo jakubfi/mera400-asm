@@ -22,7 +22,7 @@ stack:	.res	11*4, 0x0ded
 
 	.include kz.asm
 	.include stdio.asm
-	.include prng.inc
+	.include prng.asm
 	#include "stdio_macros.h"
 
 ; ------------------------------------------------------------------------

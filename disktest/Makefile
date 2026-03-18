@@ -3,7 +3,7 @@ CFG=em400.ini
 HW_UPLOAD_PORT=/dev/ttyUSB0
 EM400=~/projekty/mera400/em400/build/em400
 EMBIN=embin
-INCLUDES=../lib/kz.asm ../lib/stdio.asm
+INCLUDES=../lib/kz.asm ../lib/stdio.asm ../lib/prng.asm
 EMAS=emas
 
 $(PRJ): $(PRJ).ppasm $(INCLUDES)
