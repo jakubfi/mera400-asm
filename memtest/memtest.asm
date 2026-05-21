@@ -3,21 +3,27 @@
 	.include cpu.inc
 	.include io.inc
 
+	.const	OPRQ_SIMULATED_ERROR_OFFSET 20
+	.const	NUM_MODULES 16
+	.const	NUM_FRAMES_STD 8
+	.const	NUM_FRAMES_MEGA 16
+
 	mcl
 
 	rky	r1
 
 	lw	r2, r1
 	nr	r2, 1
-	rw	r2, once
+	rw	r2, stepped
 
 	lw	r2, r1
 	nr	r2, 0b0000000011111110
 	rw	r2, term
 
+	; TODO: selecting frames from the terminal. for now require a frame to test
 	lw	r2, r1
 	shc	r2, 8
-	nr	r2, 0b1111111
+	nr	r2, (NUM_MODULES*NUM_FRAMES_STD) - 1
 	lw	r1, 1
 	rw	r1, test_map_standard+r2
 
@@ -27,7 +33,8 @@ imask:	.word	IMASK_PARITY | IMASK_NOMEM | IMASK_GROUP_L
 seg1:	.word	0\SR_Q | 1\SR_NB
 seg0:	.word	0\SR_Q | 0\SR_NB
 term:	.res	1
-once:	.res	1
+stepped:
+	.res	1
 cur_step:
 	.res	1
 cur_frame:
@@ -69,32 +76,42 @@ int_mem_parity:
 
 ; ------------------------------------------------------------------------
 ; simulate memory error by flipping one bit 20 words ahead
-; WARNING: this is flakey, for testing purposes only
+; honored only when test is running in NB!=0
 int_oprq:
-	rws	r3, .r3
-	rws	r4, .r4
+	rws	r5, .r5
+	rws	r6, .r6
 
-	lwt	r4, 1
+	; is memory test running? (NB!=0)
+	md	[STACKP]
+	lw	r6, [-SP_SR]
+	nr	r6, 0xf\SR_NB
+	jz	.skip
 
-	lw	r3, r1+r2
-	aw	r3, 20
-	nr	r3, 0x0fff
-	xm	r4, r3
+	lwt	r6, 1
 
-	lws	r3, .r3
-	lws	r4, .r4
+	lw	r5, r1+r2	; r1+r2 contain the current address during test
+	aw	r5, OPRQ_SIMULATED_ERROR_OFFSET
+	nr	r5, 0x0fff
+	xm	r6, r5
+
+.skip:
+	lws	r5, .r5
+	lws	r6, .r6
 	lip
-.r3:	.res	1
-.r4:	.res	1
+.r5:	.res	1
+.r6:	.res	1
 
 ; ------------------------------------------------------------------------
 int_mem_segfault:
 	hlt	045
+	ujs	int_mem_segfault
 
 ; ------------------------------------------------------------------------
 int_unexpected:
 	hlt	046
+	ujs	int_unexpected
 
+; NOTE: local stdio library functions to reduce memory footprint
 ; ------------------------------------------------------------------------
 ; busy character print
 ; r1 - character to print
@@ -104,8 +121,9 @@ putc:
 .retry:
 	md	[term]
 	ou	r1, KZ_CMD_DEV_WRITE
-	.word	.ok, .en, .ok, .ok
+	.word	.no, .en, .ok, .ok
 .en:	ujs	.retry
+.no:	hlt	020
 .ok:	uj	[putc]
 
 ; ------------------------------------------------------------------------
@@ -117,8 +135,9 @@ getc:
 .retry:
 	md	[term]
 	in	r1, KZ_CMD_DEV_READ
-	.word	.ok, .en, .ok, .ok
+	.word	.no, .en, .ok, .ok
 .en:	ujs	.retry
+.no:	hlt	021
 .ok:	uj	[getc]
 
 ; ------------------------------------------------------------------------
@@ -140,7 +159,7 @@ puts:
 	.res	1
 	rws	r5, .r5
 
-	lw	r5, r1+r1 ; string address
+	lw	r5, r1+r1	; word->byte string addr
 
 .loop:
 	lb	r1, r5
@@ -166,11 +185,12 @@ puts:
 ; r2 - buffer address
 hex2asc:
 	.res	1
+	rws	r5, .r5
 
-	slz	r2
-	lwt	r4, 4 ; 4 digits
+	slz	r2	; word->byte addr
+	lwt	r5, 4	; 4 digits
 .loop:
-	shc	r1, -4 ; shift quad into position
+	shc	r1, -4	; shift quad into position
 	lw	r3, r1
 	nr	r3, 0xf
 	cwt	r3, 9
@@ -180,11 +200,13 @@ hex2asc:
 	rb	r3, r2
 
 	awt	r2, 1
-	drb	r4, .loop
+	drb	r5, .loop
 	lwt	r3, 0
 	rb	r3, r2
 
+	lws	r5, .r5
 	uj	[hex2asc]
+.r5:	.res	1
 
 ; ------------------------------------------------------------------------
 ; r1 - 4bit value
@@ -216,7 +238,7 @@ march_up_w:
 
 	uj	[march_up_w]
 
-; not used, just for consistency and so that OPRQ does not crash the test
+; make sure OPRQ does not crash during this step
 .fail:
 	lj	handle_fail
 	ujs	.cont
@@ -405,7 +427,7 @@ configure_frame:
 ; r2 - frame test map pointer (local r6)
 step_all_frames:
 	.res	1
-	rws	r7, .r7
+	rl	.regs
 	lw	r7, r1
 	lw	r6, r2
 
@@ -424,11 +446,11 @@ step_all_frames:
 	rw	r5, cur_frame
 
 	; run march step over currently configured frame
-	mb	seg1
 	lw	r1, 0x0000
 	lw	r2, 0x0fff
 	lw	r3, [r7+march_step.read]
 	lw	r4, [r7+march_step.write]
+	mb	seg1
 	lj	[r7+march_step.fun]
 	mb	seg0
 
@@ -439,15 +461,15 @@ step_all_frames:
 
 .next_frame:
 	awt	r5, 1
-	cw	r5, 0b1111111
+	cw	r5, (NUM_MODULES*NUM_FRAMES_STD) - 1
 	jgs	.done
 	ujs	.loop_frame
 
 .done:
-	lws	r7, .r7
+	ll	.regs
 	uj	[step_all_frames]
 
-.r7:	.res 1
+.regs:	.res 3
 
 ; ------------------------------------------------------------------------
 .struct march_step:
@@ -497,6 +519,7 @@ test_map_standard:
 	.res	16*8, 0		; 16 modules, 8 frames each (3-bit frame address, 32KW modules)
 test_map_standard_end:
 
+; TODO: handle MEGA memory
 test_map_mega:
 	.res	16*16, 0	; 16 modules, 16 frames each (4-bit frame address, 64KW modules)
 test_map_mega_end:
@@ -512,7 +535,7 @@ start:
 
 .loop:
 	lj	march_run
-	lw	r1, [once]
+	lw	r1, [stepped]
 	bc	r1, 1
 	hlt
 	ujs	.loop
@@ -522,7 +545,7 @@ start:
 
 ; ------------------------------------------------------------------------
 stack:
-	.res	4
+	.res	4*4
 tmp:
 	.res	5
 memtest_lowest_addr:
