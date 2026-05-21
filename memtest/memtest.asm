@@ -52,7 +52,7 @@ int_mem_parity:
 	rws	r1, .r1
 
 	md	[STACKP]
-	lw	r1, -SP_R0
+	lw	r1, [-SP_R0]
 	or	r1, ?1
 	md	[STACKP]
 	rw	r1, -SP_R0			; set parity error flag
@@ -367,7 +367,7 @@ handle_fail:
 	ujs	.newline
 	lw	r1, ' P'
 	lj	put2c
-	nr	r0, ?1
+	er	r0, ?1
 
 .newline:
 	; line end
@@ -386,11 +386,12 @@ configure_frame:
 	.res	1
 
 	lw	r3, r1
+	nr	r3, 0b111	; mask everything except frame number in r3
 	shc	r3, -5		; enplace frame number in r3
-	nr	r1, 0b1111000	; mask everything but module in r1
 	shc	r1, 2		; enplace module number in r1
+	nr	r1, 0b11110	; mask everything but module in r1
 	or	r3, r1		; r3 - final module/frame for OU (0b00000000fffmmmm0)
-	
+
 	ou	r2, r3 + MEM_CFG
 	.word	.no, .en, .ok, .pe
 .no:	hlt	010
