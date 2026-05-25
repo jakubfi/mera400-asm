@@ -40,12 +40,12 @@
 
 	uj	start
 
-imask_zero:
+imask_zero:	; all interrupts disabled at idle/menu
 	.word	0
-imask_test:
-	.word	IMASK_PARITY | IMASK_NOMEM | IMASK_GROUP_L
-imask_mapping:
+imask_mapping:	; during memory probing: no simulator wanted, real faults only
 	.word	IMASK_PARITY | IMASK_NOMEM
+imask_test:	; during a march step: +GROUP_L lets OPRQ drive the fault simulator
+	.word	IMASK_PARITY | IMASK_NOMEM | IMASK_GROUP_L
 seg1:	.word	0\SR_Q | 1\SR_NB
 seg0:	.word	0\SR_Q | 0\SR_NB
 
@@ -135,6 +135,10 @@ int_mem_segfault_mapping:
 .r1:	.res	1
 
 ; ------------------------------------------------------------------------
+; Parity handler during a test:
+;  1. raise PARITY_FLAG in the interrupted R0 (so the resumed code sees it)
+;  2. overwrite the saved IC with the current march step's .fail handler,
+;     so LIP returns into the fail path instead of retrying the faulting TW
 int_mem_parity_test:
 	rws	r1, .r1
 
@@ -148,7 +152,7 @@ int_mem_parity_test:
 	lw	r1, [r1+march_step.fail]	; get current fail handler
 
 	md	[STACKP]
-	rw	r1, -SP_IC			; update return address
+	rw	r1, -SP_IC			; redirect return into .fail
 
 	lws	r1, .r1
 	lip
@@ -376,7 +380,7 @@ step_all_frames:
 
 .run_march_step:
 	rw	r5, cur_frame
-	er	r0, PARITY_FLAG
+	er	r0, PARITY_FLAG		; clear stale parity so this step's faults are unambiguous
 	; run march step over currently configured frame
 	lw	r1, 0x0000
 	lw	r2, 0x0fff
@@ -397,6 +401,9 @@ step_all_frames:
 	ujs	-2
 
 .next_frame:
+	; flag may be raised by 'X' at .loop_frame OR inside march_fail_handler
+	; (the latter case wouldn't be caught by .loop_frame's getc_nonblocking
+	; if the user has already released the key)
 	brc	TEST_CANCELLATION_FLAG
 	ujs	.done
 
@@ -412,11 +419,13 @@ step_all_frames:
 .regs:	.res 3
 
 ; ------------------------------------------------------------------------
+; Run the full MARCH C- sequence over all selected frames.
+; Cancellation is signaled via TEST_CANCELLATION_FLAG in r0 — no r1 return.
 march_run:
 	.res	1
 	rws	r7, .r7
 
-	er	r0, TEST_CANCELLATION_FLAG
+	er	r0, TEST_CANCELLATION_FLAG	; clear stale cancel from a prior run
 	lw	r7, march_seq
 
 .loop_march:
@@ -528,6 +537,10 @@ clear_map_mem_std:
 	uj	[clear_map_mem_std]
 
 ; ------------------------------------------------------------------------
+; Probe every standard frame and record its state in test_map_standard.
+; The state lives in the low 3 bits and is advanced as evidence
+; accumulates - each successful check bumps the state by one
+; (0=NOCONF, 1=NORW, 2=EMPTY, 3=OK => see STD_FRAME_STATE values)
 map_mem_std:
 	.res	1
 	rl	.regs
@@ -552,7 +565,7 @@ map_mem_std:
 	lw	r1, MAGIC
 	mb	seg1
 	pw	r1, 0
-	shc	r1, 8
+	shc	r1, 8		; perturb r1 so tw below proves the value came from memory
 	tw	r1, 0
 	mb	seg0
 
@@ -571,13 +584,13 @@ map_mem_std:
 
 .zeroes_read:
 	bb	r0, PARITY_FLAG	; skip if parity error
-	ujs	.deconfigure
-	ib	r6+r5		; advance frame state: all 1s, but with parity error
+	ujs	.deconfigure	; all 0s + no parity = empty pattern -> stay at EMPTY
+	ib	r6+r5		; all 0s + parity error = real memory -> advance to OK
 
 .ones_read:
 	brc	PARITY_FLAG	; skip if no parity error
-	ujs	.deconfigure
-	ib	r6+r5		; advance frame state: all 1s, but no parity error
+	ujs	.deconfigure	; all 1s + parity = empty pattern -> stay at EMPTY
+	ib	r6+r5		; all 1s + no parity = real memory -> advance to OK
 
 .deconfigure:
 	; deconfigure frame
@@ -894,11 +907,11 @@ select_frame:
 	rws	r6, .r6
 
 	lj	read_module
-	shc	r1, -3
-	lw	r5, r1		; r5 - module number
+	shc	r1, -3		; rotate module nibble into the mmmm-fff layout
+	lw	r5, r1		; r5 = mmmm000
 
 	lj	read_frame
-	or	r5, r1
+	or	r5, r1		; r5 = mmmmfff — final index into test_map_standard
 
 	lw	r1, '\r\n'
 	lj	put2c
@@ -919,9 +932,10 @@ select_module:
 	rws	r6, .r6
 
 	lj	read_module	; r1 - module number (0-f)
-	shc	r1, -3
+	shc	r1, -3		; r1 = mmmm000 — first frame of this module
 	lw	r6, TEST_ACTIVE
 .loop:
+	; mark all 8 frames in this module, stop once the low 3 bits wrap to 0
 	om	r6, test_map_standard+r1
 	awt	r1, 1
 	lw	r5, r1
