@@ -447,13 +447,12 @@ march_run:
 
 .r7:	.res 1
 
+.ifdef FIND_SYS_PAGES
 ; ------------------------------------------------------------------------
 ; return: r1 - number of hardwired system pages
-check_sys_pages:
+find_sys_pages:
 	.res	1
-	rws	r6, .r6
 
-	lw	r6, SYS_FRAME
 	lwt	r1, 0
 	; module, segment - always 0 for system memory
 	lwt	r2, 0	; page
@@ -466,7 +465,6 @@ check_sys_pages:
 	ujs	.err
 .system_frame:
 	; allocation failed = hardwired system frame
-	om	r6, test_map_standard+r1
 	awt	r1, 1	; sys_frames++
 	cwt	r1, 2	; last checked frame?
 	jes	.fin	; yes
@@ -482,9 +480,20 @@ check_sys_pages:
 	hlt	031
 	ujs	.dealloc_err
 .fin:
-	lws	r6, .r6
-	uj	[check_sys_pages]
-.r6:	.res	1
+	uj	[find_sys_pages]
+.endif
+
+; ------------------------------------------------------------------------
+; r1 - number of hardwired system pages (must be > 0)
+mark_sys_pages:
+	.res	1
+
+	lw	r2, SYS_FRAME
+.loop:
+	om	r2, test_map_standard-1+r1
+	drb	r1, .loop
+
+	uj	[mark_sys_pages]
 
 ; ------------------------------------------------------------------------
 ; Check Computex memory presence
@@ -692,9 +701,16 @@ setup:
 	; clear the memory map
 	lj	clear_map_mem_std
 
-	; check system segments
-	lj	check_sys_pages
+.ifdef FIND_SYS_PAGES
+	; finding system pages may fail with "hacked" modules installed
+	; enabled on demand with FIND_SYS_PAGES
+	lj	find_sys_pages
+.else
+	; by default assume 2 pages
+	lwt	r1, 2
+.endif
 	rw	r1, sys_pages
+	lj	mark_sys_pages
 
 	; check for Amepol's MEGA memory
 	lj	check_mega
