@@ -1,3 +1,4 @@
 binaries
 *.log
+*.sym
 __pycache__

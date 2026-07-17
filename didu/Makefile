@@ -6,7 +6,7 @@ dd: dd.asm $(INCLUDES)
 	emas -o dd -c mera400 -I ../lib dd.asm
 
 emu: $(BIN)
-	em400 -c $(CFG) -p dd
+	em400 -c $(CFG) -p dd ${EM400_OPTS}
 
 push: $(BIN)
 	embin -o $(UPLOAD_PORT) dd

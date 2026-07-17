@@ -13,7 +13,7 @@ $(PRJ): $(PRJ).ppasm $(INCLUDES)
 	cpp -I ../lib -P -undef $< -o $@
 
 emu: $(PRJ)
-	$(EM400) -c $(CFG) -p $(PRJ)
+	$(EM400) -c $(CFG) -p $(PRJ) ${EM400_OPTS}
 
 push: $(PRJ)
 	$(EMBIN) -o $(HW_UPLOAD_PORT) $(PRJ)

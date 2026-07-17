@@ -8,7 +8,7 @@ $(PRJ): $(PRJ).asm $(INCLUDES)
 	emas preproc_$(PRJ).asm -I ../lib -o $(PRJ)
 
 emu: $(PRJ)
-	em400 -c $(CFG) -p $(PRJ)
+	em400 -c $(CFG) -p $(PRJ) ${EM400_OPTS}
 
 push: $(PRJ)
 	embin -o $(UPLOAD_PORT) $(PRJ)

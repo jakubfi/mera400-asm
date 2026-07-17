@@ -7,7 +7,7 @@ ${PRJ}: $(PRJ).asm $(LIBS)
 	emas -o $(PRJ) -c mera400 -Oraw $(PRJ).asm
 
 emu: $(PRJ)
-	em400 -c $(INI) -p $(PRJ)
+	em400 -c $(INI) -p $(PRJ) ${EM400_OPTS}
 
 push: $(BIN)
 	embin -o $(UPLOAD_PORT) $(PRJ)

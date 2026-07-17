@@ -3,9 +3,10 @@
 	.include cpu.inc
 	.include io.inc
 
+	mcl
 	uj	start
 
-imask:	.word	IMASK_NONE ; IMASK_PARITY, IMASK_NOMEM, IMASK_CPU_H, IMASK_IFPOWER, IMASK_GROUP_H, IMASK_CH0_1, IMASK_CH2_3, IMASK_CH4_9, IMASK_CH10_15, IMASK_GROUP_L
+imask:	.word	IMASK_CH10_15 ; see /usr/share/emas/include/cpu.inc for more
 izero:	.word	IMASK_NONE
 
 dummy:	hlt	045	; halt on interrupts that shouldn't happen
@@ -13,29 +14,36 @@ dummy:	hlt	045	; halt on interrupts that shouldn't happen
 
 stack:	.res	11*4, 0x0ded
 
+	; 0x40 — 32 interrupt vectors - all dummy by default
 	.org	INTV
 	.res	32, dummy
+	; 0x60 — EXL (syscall) handler - dummy by default
 	.org	EXLV
 	.word	dummy
+	; 0x61 — interrupt stack pointer - by default after the program
 	.org	STACKP
 	.word	stack
+
+	; 0x70 — first usable address
 	.org	OS_START
 
+	; channel/device I/O driver
 	.include kz.asm
+	; putc/getc/puts/write/read etc.
 	.include stdio.asm
 
 ; ------------------------------------------------------------------------
 	.const	CH 15
 	.const	TERM CH\IO_CHAN | 0\IO_DEV
-uzdat_list:
-	.word	TERM, -1
 
 ; ------------------------------------------------------------------------
 ; ---- MAIN --------------------------------------------------------------
 ; ------------------------------------------------------------------------
 start:
 
+	; program code goes here
 
-h:	hlt
-	ujs	h
+.wait:	hlt
+	ujs	.wait
 
+stack:

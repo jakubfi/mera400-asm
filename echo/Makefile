@@ -7,7 +7,7 @@ $(PROJECT): $(PROJECT).asm $(INCLUDES)
 	emas -o $(PROJECT) -c mera400 -I ../lib $(PROJECT).asm
 
 emu: $(PROJECT)
-	em400 -c $(CFG) -p $(PROJECT)
+	em400 -c $(CFG) -p $(PROJECT) ${EM400_OPTS}
 
 push: $(PROJECT)
 	embin -o $(UPLOAD_PORT) $(PROJECT)
